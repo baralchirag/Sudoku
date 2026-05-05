@@ -1,0 +1,46 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f0f0f0;
+}
+
+#sudoku-board {
+    display: grid;
+    grid-template-columns: repeat(9, 50px);
+    grid-template-rows: repeat(9, 50px);
+    border: 3px solid black;
+    margin-top: 20px;
+}
+
+.cell {
+    width: 50px;
+    height: 50px;
+    border: 1px solid #ccc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    box-sizing: border-box;
+}
+
+/* Add thicker lines for the 3x3 boxes */
+.cell:nth-child(3n) {
+    border-right: 3px solid black;
+}
+.cell:nth-child(9n) {
+    border-right: 1px solid #ccc;
+}
+.cell:nth-child(n+19):nth-child(-n+27),
+.cell:nth-child(n+46):nth-child(-n+54) {
+    border-bottom: 3px solid black;
+}
+
+.cell.selected {
+    background-color: #a2c4f0;
+}
+
+.cell.highlighted {
+    background-color: #d9e9f9;
+}
