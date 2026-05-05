@@ -8,6 +8,15 @@
 </head>
 <body>
     <h1>Sudoku</h1>
+    <div id="controls">
+        <div id="difficulty-group" aria-label="Difficulty selector">
+            <button class="difficulty-option active" type="button" data-difficulty="easy">Easy</button>
+            <button class="difficulty-option" type="button" data-difficulty="medium">Medium</button>
+            <button class="difficulty-option" type="button" data-difficulty="hard">Hard</button>
+            <button class="difficulty-option" type="button" data-difficulty="expert">Expert</button>
+        </div>
+        <div id="timer">00:00</div>
+    </div>
     <div id="sudoku-board"></div>
     <script src="app.js"></script>
 </body>

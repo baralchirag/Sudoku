@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     const boardElement = document.getElementById('sudoku-board');
+    const difficultyButtons = Array.from(document.querySelectorAll('.difficulty-option'));
     const cells = [];
     const gameState = {
+        difficulty: 'easy',
         initial: [
             5, 3, 0, 0, 7, 0, 0, 0, 0,
             6, 0, 0, 1, 9, 5, 0, 0, 0,
@@ -20,6 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     gameState.current = gameState.initial.slice();
     gameState.initial.forEach((v, i) => { if (v !== 0) gameState.fixedSet.add(i); });
+
+    difficultyButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            gameState.difficulty = button.dataset.difficulty;
+            difficultyButtons.forEach(option => option.classList.toggle('active', option === button));
+        });
+    });
+
+    boardElement.tabIndex = 0;
 
     for (let i = 0; i < 81; i++) {
         const cell = document.createElement('div');
@@ -41,8 +52,12 @@ document.addEventListener('DOMContentLoaded', () => {
             el.textContent = '';
         }
     }
+    // Timer functions
+    const timerEl = document.getElementById('timer');
+    // initial validation for conflicts
+    validateBoard();
 
-    document.addEventListener('keydown', handleKeyPress);
+    boardElement.addEventListener('keydown', handleKeyPress);
 
     function selectCell(index) {
         // clear previous selection and highlights
@@ -55,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedCell = cells[gameState.selected];
         selectedCell.classList.add('selected');
         highlightRelated(index);
+        boardElement.focus();
     }
 
     function highlightRelated(index) {
@@ -76,6 +92,90 @@ document.addEventListener('DOMContentLoaded', () => {
         cells[index].classList.remove('highlighted');
     }
 
+    // Validate board and mark conflicts (duplicates in row/col/box)
+    function validateBoard() {
+        const conflicts = new Set();
+
+        // rows
+        for (let r = 0; r < 9; r++) {
+            const seen = {};
+            for (let c = 0; c < 9; c++) {
+                const idx = r * 9 + c;
+                const v = gameState.current[idx];
+                if (!v) continue;
+                if (!seen[v]) seen[v] = [];
+                seen[v].push(idx);
+            }
+            Object.values(seen).forEach(list => { if (list.length > 1) list.forEach(i => conflicts.add(i)); });
+        }
+
+        // columns
+        for (let c = 0; c < 9; c++) {
+            const seen = {};
+            for (let r = 0; r < 9; r++) {
+                const idx = r * 9 + c;
+                const v = gameState.current[idx];
+                if (!v) continue;
+                if (!seen[v]) seen[v] = [];
+                seen[v].push(idx);
+            }
+            Object.values(seen).forEach(list => { if (list.length > 1) list.forEach(i => conflicts.add(i)); });
+        }
+
+        // boxes
+        for (let br = 0; br < 3; br++) {
+            for (let bc = 0; bc < 3; bc++) {
+                const seen = {};
+                for (let r = 0; r < 3; r++) {
+                    for (let c = 0; c < 3; c++) {
+                        const rr = br * 3 + r;
+                        const cc = bc * 3 + c;
+                        const idx = rr * 9 + cc;
+                        const v = gameState.current[idx];
+                        if (!v) continue;
+                        if (!seen[v]) seen[v] = [];
+                        seen[v].push(idx);
+                    }
+                }
+                Object.values(seen).forEach(list => { if (list.length > 1) list.forEach(i => conflicts.add(i)); });
+            }
+        }
+
+        // apply classes
+        for (let i = 0; i < 81; i++) {
+            cells[i].classList.toggle('conflict', conflicts.has(i));
+        }
+    }
+
+    function formatTime(sec) {
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function startTimer() {
+        if (!timerEl) return;
+        if (gameState.timer && gameState.timer.interval) return; // already running
+        gameState.timer = {
+            startAt: Date.now(),
+            elapsed: 0,
+            interval: null,
+        };
+        // update immediately
+        timerEl.textContent = formatTime(0);
+        gameState.timer.interval = setInterval(() => {
+            gameState.timer.elapsed = Math.floor((Date.now() - gameState.timer.startAt) / 1000);
+            timerEl.textContent = formatTime(gameState.timer.elapsed);
+        }, 1000);
+    }
+
+    function stopTimer() {
+        if (gameState.timer && gameState.timer.interval) {
+            clearInterval(gameState.timer.interval);
+            gameState.timer.interval = null;
+        }
+    }
+
     function handleKeyPress(event) {
         const idx = gameState.selected;
         if (idx === -1) return;
@@ -84,11 +184,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const key = event.key;
         if (key >= '1' && key <= '9') {
+            event.preventDefault();
+            startTimer();
             gameState.current[idx] = parseInt(key, 10);
             cells[idx].textContent = key;
+            validateBoard();
         } else if (key === 'Backspace' || key === 'Delete') {
+            event.preventDefault();
             gameState.current[idx] = 0;
             cells[idx].textContent = '';
+            validateBoard();
         }
     }
 });
