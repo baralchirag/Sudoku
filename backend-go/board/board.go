@@ -60,7 +60,8 @@ func (b Board) Set(idx int, val int) error {
 
 // IsValid checks whether placing num (1..9) at (row,col) is valid
 // against Sudoku rules: no duplicate in the same row, column, or 3x3 box.
-// It does not modify the board. The function assumes row/col are 0-based.
+// It skips the cell at (row,col) itself so it is safe to call on a board
+// where the value has already been written to that cell.
 func IsValid(b Board, row, col, num int) bool {
 	if err := ValidateRowCol(row, col); err != nil {
 		return false
@@ -69,28 +70,40 @@ func IsValid(b Board, row, col, num int) bool {
 		return false
 	}
 
-	// Check row
+	// Check row — skip the cell itself
 	for c := 0; c < 9; c++ {
+		if c == col {
+			continue
+		}
 		if b[RowColToIndex(row, c)] == num {
 			return false
 		}
 	}
-	// Check column
+
+	// Check column — skip the cell itself
 	for r := 0; r < 9; r++ {
+		if r == row {
+			continue
+		}
 		if b[RowColToIndex(r, col)] == num {
 			return false
 		}
 	}
-	// Check 3x3 box
+
+	// Check 3x3 box — skip the cell itself
 	startRow := (row / 3) * 3
 	startCol := (col / 3) * 3
 	for dr := 0; dr < 3; dr++ {
 		for dc := 0; dc < 3; dc++ {
+			if startRow+dr == row && startCol+dc == col {
+				continue
+			}
 			if b[RowColToIndex(startRow+dr, startCol+dc)] == num {
 				return false
 			}
 		}
 	}
+
 	return true
 }
 
