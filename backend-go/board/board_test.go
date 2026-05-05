@@ -68,3 +68,83 @@ func TestIsValidChecks(t *testing.T) {
 		t.Fatalf("expected invalid due to box conflict")
 	}
 }
+
+func TestSolveFullBoard(t *testing.T) {
+	puzzle := Board{
+		5, 3, 0, 0, 7, 0, 0, 0, 0,
+		6, 0, 0, 1, 9, 5, 0, 0, 0,
+		0, 9, 8, 0, 0, 0, 0, 6, 0,
+		8, 0, 0, 0, 6, 0, 0, 0, 3,
+		4, 0, 0, 8, 0, 3, 0, 0, 1,
+		7, 0, 0, 0, 2, 0, 0, 0, 6,
+		0, 6, 0, 0, 0, 0, 2, 8, 0,
+		0, 0, 0, 4, 1, 9, 0, 0, 5,
+		0, 0, 0, 0, 8, 0, 0, 7, 9,
+	}
+
+	solved, ok := Solve(puzzle)
+	if !ok {
+		t.Fatalf("expected puzzle to be solvable")
+	}
+	if len(solved) != 81 {
+		t.Fatalf("expected solved board length 81, got %d", len(solved))
+	}
+	for i, v := range solved {
+		if v < 1 || v > 9 {
+			t.Fatalf("unexpected value at index %d: %d", i, v)
+		}
+	}
+	// ensure original puzzle was not modified
+	if puzzle[2] != 0 {
+		t.Fatalf("expected original puzzle to remain unchanged")
+	}
+	// a solved board must satisfy IsValid for every cell's value
+	for idx, num := range solved {
+		row, col := IndexToRowCol(idx)
+		if !IsValid(solved, row, col, num) {
+			t.Fatalf("solved board invalid at index %d (%d,%d) = %d", idx, row, col, num)
+		}
+	}
+}
+
+func TestCountSolutions(t *testing.T) {
+	t.Run("zero solutions", func(t *testing.T) {
+		board := New()
+		if err := board.Set(RowColToIndex(0, 0), 1); err != nil {
+			t.Fatalf("set failed: %v", err)
+		}
+		if err := board.Set(RowColToIndex(0, 1), 1); err != nil {
+			t.Fatalf("set failed: %v", err)
+		}
+		if got := CountSolutions(board, 2); got != 0 {
+			t.Fatalf("expected 0 solutions, got %d", got)
+		}
+	})
+
+	t.Run("one solution", func(t *testing.T) {
+		puzzle := Board{
+			5, 3, 0, 0, 7, 0, 0, 0, 0,
+			6, 0, 0, 1, 9, 5, 0, 0, 0,
+			0, 9, 8, 0, 0, 0, 0, 6, 0,
+			8, 0, 0, 0, 6, 0, 0, 0, 3,
+			4, 0, 0, 8, 0, 3, 0, 0, 1,
+			7, 0, 0, 0, 2, 0, 0, 0, 6,
+			0, 6, 0, 0, 0, 0, 2, 8, 0,
+			0, 0, 0, 4, 1, 9, 0, 0, 5,
+			0, 0, 0, 0, 8, 0, 0, 7, 9,
+		}
+		if got := CountSolutions(puzzle, 2); got != 1 {
+			t.Fatalf("expected 1 solution, got %d", got)
+		}
+	})
+
+	t.Run("multiple solutions", func(t *testing.T) {
+		board := New()
+		if err := board.Set(RowColToIndex(0, 0), 1); err != nil {
+			t.Fatalf("set failed: %v", err)
+		}
+		if got := CountSolutions(board, 2); got != 2 {
+			t.Fatalf("expected to stop at 2 solutions, got %d", got)
+		}
+	})
+}

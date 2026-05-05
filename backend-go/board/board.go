@@ -103,3 +103,77 @@ func IsValid(b Board, row, col, num int) bool {
 	}
 	return true
 }
+
+// Solve returns a solved copy of the board using backtracking.
+// The input board is not modified.
+func Solve(b Board) (Board, bool) {
+	grid := make(Board, len(b))
+	copy(grid, b)
+	if solveBacktrack(grid) {
+		return grid, true
+	}
+	return nil, false
+}
+
+// CountSolutions counts how many solutions the board has, stopping once
+// the count reaches limit. A limit of 2 is enough to distinguish
+// 0, 1, and multiple solutions.
+func CountSolutions(b Board, limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	grid := make(Board, len(b))
+	copy(grid, b)
+	count := 0
+	countSolutionsBacktrack(grid, limit, &count)
+	return count
+}
+
+func solveBacktrack(b Board) bool {
+	idx := findEmptyCell(b)
+	if idx == -1 {
+		return true
+	}
+	row, col := IndexToRowCol(idx)
+	for num := 1; num <= 9; num++ {
+		if IsValid(b, row, col, num) {
+			b[idx] = num
+			if solveBacktrack(b) {
+				return true
+			}
+			b[idx] = 0
+		}
+	}
+	return false
+}
+
+func countSolutionsBacktrack(b Board, limit int, count *int) {
+	if *count >= limit {
+		return
+	}
+	idx := findEmptyCell(b)
+	if idx == -1 {
+		*count++
+		return
+	}
+	row, col := IndexToRowCol(idx)
+	for num := 1; num <= 9; num++ {
+		if IsValid(b, row, col, num) {
+			b[idx] = num
+			countSolutionsBacktrack(b, limit, count)
+			b[idx] = 0
+			if *count >= limit {
+				return
+			}
+		}
+	}
+}
+
+func findEmptyCell(b Board) int {
+	for i, v := range b {
+		if v == 0 {
+			return i
+		}
+	}
+	return -1
+}
