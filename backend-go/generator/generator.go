@@ -7,6 +7,23 @@ import (
 	"github.com/chiragbaral/sudoku/backend-go/board"
 )
 
+// Difficulty represents the puzzle's difficulty level.
+type Difficulty int
+
+const (
+	Easy Difficulty = iota
+	Medium
+	Hard
+)
+
+// cluesByDifficulty maps a difficulty level to the approximate number of clues
+// that should remain on the board.
+var cluesByDifficulty = map[Difficulty]int{
+	Easy:   45,
+	Medium: 35,
+	Hard:   28,
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -60,15 +77,24 @@ func shuffledNumbers() []int {
 
 // GeneratePuzzle creates a new puzzle with a unique solution by removing cells
 // from a fully solved board.
-func GeneratePuzzle() board.Board {
+func GeneratePuzzle(difficulty Difficulty) board.Board {
 	// 1. Start with a full, valid board
 	b := GenerateFullBoard()
+	targetClues, ok := cluesByDifficulty[difficulty]
+	if !ok {
+		targetClues = cluesByDifficulty[Medium] // Default to Medium
+	}
 
 	// 2. Create a shuffled list of cell indices to remove
 	indices := rand.Perm(81)
+	clues := 81
 
 	// 3. Remove cells one by one
 	for _, idx := range indices {
+		if clues <= targetClues {
+			break // Stop when we reach the target number of clues
+		}
+
 		// 3a. Store the value and attempt to remove it
 		value := b[idx]
 		if value == 0 {
@@ -83,6 +109,8 @@ func GeneratePuzzle() board.Board {
 		// 3c. If removing the cell results in not exactly one solution, put it back
 		if board.CountSolutions(boardCopy, 2) != 1 {
 			b[idx] = value
+		} else {
+			clues--
 		}
 	}
 

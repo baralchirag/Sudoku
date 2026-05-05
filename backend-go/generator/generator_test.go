@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/chiragbaral/sudoku/backend-go/board"
@@ -45,28 +46,32 @@ func TestGeneratesDifferentBoards(t *testing.T) {
 }
 
 func TestGeneratePuzzle(t *testing.T) {
-	puzzle := GeneratePuzzle()
+	for _, difficulty := range []Difficulty{Easy, Medium, Hard} {
+		t.Run(fmt.Sprintf("Difficulty_%d", difficulty), func(t *testing.T) {
+			puzzle := GeneratePuzzle(difficulty)
 
-	// 1. Check that the puzzle is not empty
-	if puzzle == nil || len(puzzle) != 81 {
-		t.Fatalf("puzzle is nil or has incorrect length")
-	}
+			// 1. Check that the puzzle is not empty
+			if puzzle == nil || len(puzzle) != 81 {
+				t.Fatalf("puzzle is nil or has incorrect length")
+			}
 
-	// 2. Check that the puzzle has empty cells
-	hasEmptyCells := false
-	for _, cell := range puzzle {
-		if cell == 0 {
-			hasEmptyCells = true
-			break
-		}
-	}
-	if !hasEmptyCells {
-		t.Errorf("generated puzzle has no empty cells")
-	}
+			// 2. Check that the puzzle has empty cells
+			hasEmptyCells := false
+			for _, cell := range puzzle {
+				if cell == 0 {
+					hasEmptyCells = true
+					break
+				}
+			}
+			if !hasEmptyCells {
+				t.Errorf("generated puzzle has no empty cells")
+			}
 
-	// 3. Check that the puzzle has exactly one solution
-	solutionCount := board.CountSolutions(puzzle, 2)
-	if solutionCount != 1 {
-		t.Errorf("expected puzzle to have 1 solution, but got %d", solutionCount)
+			// 3. Check that the puzzle has exactly one solution
+			solutionCount := board.CountSolutions(puzzle, 2)
+			if solutionCount != 1 {
+				t.Errorf("expected puzzle to have 1 solution, but got %d", solutionCount)
+			}
+		})
 	}
 }

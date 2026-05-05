@@ -68,20 +68,15 @@ func IsValid(b Board, row, col, num int) bool {
 	if num < 1 || num > 9 {
 		return false
 	}
+
 	// Check row
 	for c := 0; c < 9; c++ {
-		if c == col {
-			continue
-		}
 		if b[RowColToIndex(row, c)] == num {
 			return false
 		}
 	}
 	// Check column
 	for r := 0; r < 9; r++ {
-		if r == row {
-			continue
-		}
 		if b[RowColToIndex(r, col)] == num {
 			return false
 		}
@@ -91,12 +86,7 @@ func IsValid(b Board, row, col, num int) bool {
 	startCol := (col / 3) * 3
 	for dr := 0; dr < 3; dr++ {
 		for dc := 0; dc < 3; dc++ {
-			r := startRow + dr
-			c := startCol + dc
-			if r == row && c == col {
-				continue
-			}
-			if b[RowColToIndex(r, c)] == num {
+			if b[RowColToIndex(startRow+dr, startCol+dc)] == num {
 				return false
 			}
 		}
@@ -176,4 +166,17 @@ func findEmptyCell(b Board) int {
 		}
 	}
 	return -1
+}
+
+// BoardsEqual checks if two boards are identical.
+func BoardsEqual(b1, b2 Board) bool {
+	if len(b1) != len(b2) {
+		return false
+	}
+	for i := range b1 {
+		if b1[i] != b2[i] {
+			return false
+		}
+	}
+	return true
 }
