@@ -24,6 +24,13 @@ var cluesByDifficulty = map[Difficulty]int{
 	Hard:   28,
 }
 
+// GeneratedPuzzle bundles the puzzle, its solution, and the difficulty used.
+type GeneratedPuzzle struct {
+	Difficulty Difficulty
+	Puzzle     board.Board
+	Solution   board.Board
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -78,41 +85,51 @@ func shuffledNumbers() []int {
 // GeneratePuzzle creates a new puzzle with a unique solution by removing cells
 // from a fully solved board.
 func GeneratePuzzle(difficulty Difficulty) board.Board {
-	// 1. Start with a full, valid board
-	b := GenerateFullBoard()
+	return GeneratePuzzleRecord(difficulty).Puzzle
+}
+
+// GeneratePuzzleRecord creates a puzzle, keeps its solution, and stores the chosen difficulty.
+func GeneratePuzzleRecord(difficulty Difficulty) GeneratedPuzzle {
+	solution := GenerateFullBoard()
+	puzzle := carvePuzzle(solution, difficulty)
+	return GeneratedPuzzle{
+		Difficulty: difficulty,
+		Puzzle:     puzzle,
+		Solution:   solution,
+	}
+}
+
+func carvePuzzle(solution board.Board, difficulty Difficulty) board.Board {
+	puzzle := make(board.Board, len(solution))
+	copy(puzzle, solution)
+
 	targetClues, ok := cluesByDifficulty[difficulty]
 	if !ok {
-		targetClues = cluesByDifficulty[Medium] // Default to Medium
+		targetClues = cluesByDifficulty[Medium]
 	}
 
-	// 2. Create a shuffled list of cell indices to remove
 	indices := rand.Perm(81)
 	clues := 81
 
-	// 3. Remove cells one by one
 	for _, idx := range indices {
 		if clues <= targetClues {
-			break // Stop when we reach the target number of clues
+			break
 		}
 
-		// 3a. Store the value and attempt to remove it
-		value := b[idx]
+		value := puzzle[idx]
 		if value == 0 {
 			continue
 		}
-		b[idx] = 0
+		puzzle[idx] = 0
 
-		// 3b. Make a copy to check for a unique solution
-		boardCopy := make(board.Board, len(b))
-		copy(boardCopy, b)
-
-		// 3c. If removing the cell results in not exactly one solution, put it back
+		boardCopy := make(board.Board, len(puzzle))
+		copy(boardCopy, puzzle)
 		if board.CountSolutions(boardCopy, 2) != 1 {
-			b[idx] = value
+			puzzle[idx] = value
 		} else {
 			clues--
 		}
 	}
 
-	return b
+	return puzzle
 }

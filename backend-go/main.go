@@ -8,6 +8,7 @@ import (
 
 	"github.com/chiragbaral/sudoku/backend-go/board"
 	"github.com/chiragbaral/sudoku/backend-go/generator"
+	"github.com/chiragbaral/sudoku/backend-go/storage"
 )
 
 func main() {
@@ -35,8 +36,29 @@ func main() {
 			os.Exit(1)
 		}
 
-		puzzle := generator.GeneratePuzzle(diff)
+		record := generator.GeneratePuzzleRecord(diff)
+		if err := storage.Save(storage.NewPuzzleRecord(*difficultyStr, record.Puzzle, record.Solution)); err != nil {
+			fmt.Printf("Error saving puzzle: %v\n", err)
+			os.Exit(1)
+		}
+
+		puzzle := record.Puzzle
 		printBoard(puzzle)
+		fmt.Printf("Saved puzzle to %s\n", storage.DefaultPath())
+
+	case "list":
+		records, err := storage.List()
+		if err != nil {
+			fmt.Printf("Error loading puzzles: %v\n", err)
+			os.Exit(1)
+		}
+		if len(records) == 0 {
+			fmt.Println("No stored puzzles yet.")
+			return
+		}
+		for i, record := range records {
+			fmt.Println(storage.FormatRecord(i, record))
+		}
 
 	case "solve":
 		solveCmd := flag.NewFlagSet("solve", flag.ExitOnError)
@@ -77,7 +99,7 @@ func main() {
 		}
 
 	default:
-		fmt.Println("expected 'generate', 'solve', or 'verify' subcommands")
+		fmt.Println("expected 'generate', 'list', 'solve', or 'verify' subcommands")
 		os.Exit(1)
 	}
 }
