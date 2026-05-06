@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const boardElement = document.getElementById('sudoku-board');
     const difficultyButtons = Array.from(document.querySelectorAll('.difficulty-option'));
+    const resetBtn = document.getElementById('reset-btn');
+    const clearBtn = document.getElementById('clear-btn');
     const cells = [];
     const gameState = {
         difficulty: 'easy',
@@ -29,6 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
             difficultyButtons.forEach(option => option.classList.toggle('active', option === button));
         });
     });
+
+    // wire action buttons
+    if (resetBtn) resetBtn.addEventListener('click', resetPuzzle);
+    if (clearBtn) clearBtn.addEventListener('click', clearBoard);
 
     boardElement.tabIndex = 0;
 
@@ -145,6 +151,42 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < 81; i++) {
             cells[i].classList.toggle('conflict', conflicts.has(i));
         }
+    }
+
+    function resetPuzzle() {
+        // restore initial state
+        gameState.current = gameState.initial.slice();
+        // clear selection and highlights
+        if (gameState.selected !== -1) {
+            cells[gameState.selected].classList.remove('selected');
+            gameState.selected = -1;
+        }
+        cells.forEach(c => { c.classList.remove('highlighted', 'conflict'); });
+
+        // render cells
+        for (let i = 0; i < 81; i++) {
+            const el = cells[i];
+            const v = gameState.current[i];
+            el.textContent = v === 0 ? '' : String(v);
+            el.classList.toggle('fixed', gameState.fixedSet.has(i));
+        }
+
+        // stop and reset timer
+        stopTimer();
+        if (timerEl) timerEl.textContent = '00:00';
+        gameState.timer = null;
+    }
+
+    function clearBoard() {
+        // clear only non-fixed cells
+        for (let i = 0; i < 81; i++) {
+            if (!gameState.fixedSet.has(i)) {
+                gameState.current[i] = 0;
+                cells[i].textContent = '';
+            }
+            cells[i].classList.remove('conflict');
+        }
+        validateBoard();
     }
 
     function formatTime(sec) {

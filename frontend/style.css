@@ -92,6 +92,26 @@ body {
     border-color: #2f6feb;
 }
 
+#actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.control-button {
+    border: 1px solid #b8c2cc;
+    background: #ffffff;
+    color: #2b2f33;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.control-button:hover {
+    background: #f3f7ff;
+}
+
 #timer {
     font-size: 18px;
     background: #ffffff;
