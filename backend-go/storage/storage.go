@@ -1,5 +1,4 @@
 package storage
-package storage
 
 import (
 	"encoding/json"
@@ -92,7 +91,7 @@ func writeAllLocked(records []PuzzleRecord) error {
 
 func boardToString(b board.Board) string {
 	var builder strings.Builder
-	b.Grow(len(b))
+	builder.Grow(len(b))
 	for _, v := range b {
 		builder.WriteByte(byte('0' + v))
 	}
