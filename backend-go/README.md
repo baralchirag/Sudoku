@@ -1,25 +1,37 @@
 # Backend (Go)
 
-This folder contains a minimal Go backend scaffold and the `board` package.
+This folder contains the Sudoku backend and CLI tools.
 
-It now also stores generated puzzles in a JSON file at `data/puzzles.json`.
+Generated puzzles are stored in `data/puzzles.json` and each record includes:
+- Puzzle
+- Solution
+- Difficulty
 
 Quick run (requires Go 1.20+):
 
 ```bash
 cd backend-go
 go test ./...
-go run ./...
+```
 
-Generate and persist a puzzle:
+Generate and persist one puzzle:
 
 ```bash
 go run . generate --difficulty easy
+```
+
+Bulk-generate a pre-filled pool and persist it:
+
+```bash
+# 25 medium puzzles
+go run . pool --difficulty medium --count 25
+
+# 10 per difficulty (easy, medium, hard)
+go run . pool --difficulty all --count 10
 ```
 
 List stored puzzles:
 
 ```bash
 go run . list
-```
 ```

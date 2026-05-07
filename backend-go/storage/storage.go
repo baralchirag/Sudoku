@@ -47,6 +47,23 @@ func Save(record PuzzleRecord) error {
 	return writeAllLocked(records)
 }
 
+// SaveMany appends multiple puzzle records to the backing file in one write.
+func SaveMany(newRecords []PuzzleRecord) error {
+	if len(newRecords) == 0 {
+		return nil
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	records, err := loadAllLocked()
+	if err != nil {
+		return err
+	}
+	records = append(records, newRecords...)
+	return writeAllLocked(records)
+}
+
 // List returns all stored puzzle records.
 func List() ([]PuzzleRecord, error) {
 	mu.Lock()

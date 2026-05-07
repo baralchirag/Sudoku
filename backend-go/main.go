@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("expected 'generate', 'solve', or 'verify' subcommands")
+		fmt.Println("expected 'generate', 'pool', 'list', 'solve', or 'verify' subcommands")
 		os.Exit(1)
 	}
 
@@ -23,16 +23,9 @@ func main() {
 		difficultyStr := generateCmd.String("difficulty", "medium", "puzzle difficulty: easy, medium, or hard")
 		generateCmd.Parse(os.Args[2:])
 
-		var diff generator.Difficulty
-		switch *difficultyStr {
-		case "easy":
-			diff = generator.Easy
-		case "medium":
-			diff = generator.Medium
-		case "hard":
-			diff = generator.Hard
-		default:
-			fmt.Printf("Unknown difficulty: %s\n", *difficultyStr)
+		diff, err := parseDifficulty(*difficultyStr)
+		if err != nil {
+			fmt.Println(err)
 			os.Exit(1)
 		}
 
@@ -45,6 +38,58 @@ func main() {
 		puzzle := record.Puzzle
 		printBoard(puzzle)
 		fmt.Printf("Saved puzzle to %s\n", storage.DefaultPath())
+
+	case "pool":
+		poolCmd := flag.NewFlagSet("pool", flag.ExitOnError)
+		difficultyStr := poolCmd.String("difficulty", "all", "pool difficulty: easy, medium, hard, or all")
+		count := poolCmd.Int("count", 10, "number of puzzles to generate per difficulty")
+		poolCmd.Parse(os.Args[2:])
+
+		if *count <= 0 {
+			fmt.Println("count must be > 0")
+			os.Exit(1)
+		}
+
+		c := *count
+
+		type level struct {
+			name string
+			diff generator.Difficulty
+		}
+
+		var levels []level
+		if strings.EqualFold(*difficultyStr, "all") {
+			levels = []level{
+				{name: "easy", diff: generator.Easy},
+				{name: "medium", diff: generator.Medium},
+				{name: "hard", diff: generator.Hard},
+			}
+		} else {
+			diff, err := parseDifficulty(*difficultyStr)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			levels = []level{{name: strings.ToLower(*difficultyStr), diff: diff}}
+		}
+
+		records := make([]storage.PuzzleRecord, 0, len(levels)*c)
+		for _, lvl := range levels {
+			for i := 0; i < *count; i++ {
+				generated := generator.GeneratePuzzleRecord(lvl.diff)
+				records = append(records, storage.NewPuzzleRecord(lvl.name, generated.Puzzle, generated.Solution))
+			}
+		}
+
+		if err := storage.SaveMany(records); err != nil {
+			fmt.Printf("Error saving pool: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Saved %d puzzles to %s\n", len(records), storage.DefaultPath())
+		for _, lvl := range levels {
+			fmt.Printf("- %s: %d\n", lvl.name, *count)
+		}
 
 	case "list":
 		records, err := storage.List()
@@ -99,8 +144,21 @@ func main() {
 		}
 
 	default:
-		fmt.Println("expected 'generate', 'list', 'solve', or 'verify' subcommands")
+		fmt.Println("expected 'generate', 'pool', 'list', 'solve', or 'verify' subcommands")
 		os.Exit(1)
+	}
+}
+
+func parseDifficulty(value string) (generator.Difficulty, error) {
+	switch strings.ToLower(value) {
+	case "easy":
+		return generator.Easy, nil
+	case "medium":
+		return generator.Medium, nil
+	case "hard":
+		return generator.Hard, nil
+	default:
+		return 0, fmt.Errorf("unknown difficulty: %s", value)
 	}
 }
 
