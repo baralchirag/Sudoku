@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const boardElement = document.getElementById('sudoku-board');
     const difficultyButtons = Array.from(document.querySelectorAll('.difficulty-option'));
+    const newBtn = document.getElementById('new-btn');
     const resetBtn = document.getElementById('reset-btn');
     const clearBtn = document.getElementById('clear-btn');
     const cells = [];
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // wire action buttons
+    if (newBtn) newBtn.addEventListener('click', () => fetchPuzzle(gameState.difficulty));
     if (resetBtn) resetBtn.addEventListener('click', resetPuzzle);
     if (clearBtn) clearBtn.addEventListener('click', clearBoard);
 
@@ -237,5 +239,49 @@ document.addEventListener('DOMContentLoaded', () => {
             cells[idx].textContent = '';
             validateBoard();
         }
+    }
+
+    // Fetch a puzzle from backend API and load it into the grid.
+    async function fetchPuzzle(difficulty) {
+        try {
+            const resp = await fetch(`/api/puzzle?difficulty=${encodeURIComponent(difficulty)}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const json = await resp.json();
+            if (json && json.puzzle) {
+                loadPuzzleFromString(json.puzzle, json.difficulty || difficulty);
+            }
+        } catch (err) {
+            console.error('Failed to fetch puzzle:', err);
+            alert('Failed to fetch puzzle from server. See console for details.');
+        }
+    }
+
+    function loadPuzzleFromString(s, difficulty) {
+        if (!s || s.length !== 81) return;
+        gameState.difficulty = difficulty || gameState.difficulty;
+        gameState.initial = new Array(81).fill(0);
+        gameState.fixedSet = new Set();
+        for (let i = 0; i < 81; i++) {
+            const ch = s.charAt(i);
+            const v = Number(ch);
+            gameState.initial[i] = v;
+            if (v !== 0) gameState.fixedSet.add(i);
+        }
+        gameState.current = gameState.initial.slice();
+
+        // render cells
+        for (let i = 0; i < 81; i++) {
+            const el = cells[i];
+            const v = gameState.current[i];
+            el.textContent = v === 0 ? '' : String(v);
+            el.classList.toggle('fixed', gameState.fixedSet.has(i));
+            el.classList.remove('conflict', 'selected', 'highlighted');
+        }
+
+        // reset timer
+        stopTimer();
+        if (timerEl) timerEl.textContent = '00:00';
+        gameState.timer = null;
+        gameState.selected = -1;
     }
 });

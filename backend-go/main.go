@@ -125,6 +125,13 @@ func main() {
 		}
 
 	case "verify":
+	case "server":
+		serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
+		port := serverCmd.Int("port", 8080, "port to serve the HTTP API on")
+		serverCmd.Parse(os.Args[2:])
+
+		startServer(*port)
+
 		verifyCmd := flag.NewFlagSet("verify", flag.ExitOnError)
 		boardStr := verifyCmd.String("board", "", "puzzle to verify as a string of 81 numbers")
 		verifyCmd.Parse(os.Args[2:])
