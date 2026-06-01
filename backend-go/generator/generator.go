@@ -14,6 +14,7 @@ const (
 	Easy Difficulty = iota
 	Medium
 	Hard
+	Expert
 )
 
 // cluesByDifficulty maps a difficulty level to the approximate number of clues
@@ -22,6 +23,7 @@ var cluesByDifficulty = map[Difficulty]int{
 	Easy:   45,
 	Medium: 35,
 	Hard:   28,
+	Expert: 24,
 }
 
 // GeneratedPuzzle bundles the puzzle, its solution, and the difficulty used.

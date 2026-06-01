@@ -112,6 +112,9 @@ func IsValid(b Board, row, col, num int) bool {
 func Solve(b Board) (Board, bool) {
 	grid := make(Board, len(b))
 	copy(grid, b)
+	if !isConsistent(grid) {
+		return nil, false
+	}
 	if solveBacktrack(grid) {
 		return grid, true
 	}
@@ -127,13 +130,16 @@ func CountSolutions(b Board, limit int) int {
 	}
 	grid := make(Board, len(b))
 	copy(grid, b)
+	if !isConsistent(grid) {
+		return 0
+	}
 	count := 0
 	countSolutionsBacktrack(grid, limit, &count)
 	return count
 }
 
 func solveBacktrack(b Board) bool {
-	idx := findEmptyCell(b)
+	idx, _ := findBestEmptyCell(b)
 	if idx == -1 {
 		return true
 	}
@@ -154,7 +160,7 @@ func countSolutionsBacktrack(b Board, limit int, count *int) {
 	if *count >= limit {
 		return
 	}
-	idx := findEmptyCell(b)
+	idx, _ := findBestEmptyCell(b)
 	if idx == -1 {
 		*count++
 		return
@@ -170,6 +176,50 @@ func countSolutionsBacktrack(b Board, limit int, count *int) {
 			}
 		}
 	}
+}
+
+func isConsistent(b Board) bool {
+	for idx, value := range b {
+		if value == 0 {
+			continue
+		}
+		row, col := IndexToRowCol(idx)
+		b[idx] = 0
+		valid := IsValid(b, row, col, value)
+		b[idx] = value
+		if !valid {
+			return false
+		}
+	}
+	return true
+}
+
+func findBestEmptyCell(b Board) (int, int) {
+	bestIdx := -1
+	bestCount := 10
+	for idx, value := range b {
+		if value != 0 {
+			continue
+		}
+		row, col := IndexToRowCol(idx)
+		count := 0
+		for num := 1; num <= 9; num++ {
+			if IsValid(b, row, col, num) {
+				count++
+			}
+		}
+		if count == 0 {
+			return idx, 0
+		}
+		if count < bestCount {
+			bestIdx = idx
+			bestCount = count
+			if bestCount == 1 {
+				break
+			}
+		}
+	}
+	return bestIdx, bestCount
 }
 
 func findEmptyCell(b Board) int {

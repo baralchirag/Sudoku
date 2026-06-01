@@ -20,7 +20,7 @@ func main() {
 	switch os.Args[1] {
 	case "generate":
 		generateCmd := flag.NewFlagSet("generate", flag.ExitOnError)
-		difficultyStr := generateCmd.String("difficulty", "medium", "puzzle difficulty: easy, medium, or hard")
+		difficultyStr := generateCmd.String("difficulty", "medium", "puzzle difficulty: easy, medium, hard, or expert")
 		generateCmd.Parse(os.Args[2:])
 
 		diff, err := parseDifficulty(*difficultyStr)
@@ -41,7 +41,7 @@ func main() {
 
 	case "pool":
 		poolCmd := flag.NewFlagSet("pool", flag.ExitOnError)
-		difficultyStr := poolCmd.String("difficulty", "all", "pool difficulty: easy, medium, hard, or all")
+		difficultyStr := poolCmd.String("difficulty", "all", "pool difficulty: easy, medium, hard, expert, or all")
 		count := poolCmd.Int("count", 10, "number of puzzles to generate per difficulty")
 		poolCmd.Parse(os.Args[2:])
 
@@ -63,6 +63,7 @@ func main() {
 				{name: "easy", diff: generator.Easy},
 				{name: "medium", diff: generator.Medium},
 				{name: "hard", diff: generator.Hard},
+				{name: "expert", diff: generator.Expert},
 			}
 		} else {
 			diff, err := parseDifficulty(*difficultyStr)
@@ -125,13 +126,6 @@ func main() {
 		}
 
 	case "verify":
-	case "server":
-		serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
-		port := serverCmd.Int("port", 8080, "port to serve the HTTP API on")
-		serverCmd.Parse(os.Args[2:])
-
-		startServer(*port)
-
 		verifyCmd := flag.NewFlagSet("verify", flag.ExitOnError)
 		boardStr := verifyCmd.String("board", "", "puzzle to verify as a string of 81 numbers")
 		verifyCmd.Parse(os.Args[2:])
@@ -150,8 +144,15 @@ func main() {
 			fmt.Println("Puzzle does not have a unique solution.")
 		}
 
+	case "server":
+		serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
+		port := serverCmd.Int("port", 8080, "port to serve the HTTP API on")
+		serverCmd.Parse(os.Args[2:])
+
+		startServer(*port)
+
 	default:
-		fmt.Println("expected 'generate', 'pool', 'list', 'solve', or 'verify' subcommands")
+		fmt.Println("expected 'generate', 'pool', 'list', 'solve', 'verify', or 'server' subcommands")
 		os.Exit(1)
 	}
 }
@@ -164,6 +165,8 @@ func parseDifficulty(value string) (generator.Difficulty, error) {
 		return generator.Medium, nil
 	case "hard":
 		return generator.Hard, nil
+	case "expert":
+		return generator.Expert, nil
 	default:
 		return 0, fmt.Errorf("unknown difficulty: %s", value)
 	}

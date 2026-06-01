@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const API_BASE = 'http://localhost:8090';
     const boardElement = document.getElementById('sudoku-board');
     const difficultyButtons = Array.from(document.querySelectorAll('.difficulty-option'));
     const newBtn = document.getElementById('new-btn');
@@ -244,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch a puzzle from backend API and load it into the grid.
     async function fetchPuzzle(difficulty) {
         try {
-            const resp = await fetch(`/api/puzzle?difficulty=${encodeURIComponent(difficulty)}`);
+            const resp = await fetch(`${API_BASE}/api/puzzle?difficulty=${encodeURIComponent(difficulty)}`);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const json = await resp.json();
             if (json && json.puzzle) {

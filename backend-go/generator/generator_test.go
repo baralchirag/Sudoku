@@ -46,7 +46,7 @@ func TestGeneratesDifferentBoards(t *testing.T) {
 }
 
 func TestGeneratePuzzle(t *testing.T) {
-	for _, difficulty := range []Difficulty{Easy, Medium, Hard} {
+	for _, difficulty := range []Difficulty{Easy, Medium, Hard, Expert} {
 		t.Run(fmt.Sprintf("Difficulty_%d", difficulty), func(t *testing.T) {
 			puzzle := GeneratePuzzle(difficulty)
 
