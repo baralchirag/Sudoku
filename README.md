@@ -1,4 +1,4 @@
-# Sudoku — a full Sudoku platform
+# Sudoku
 
 A complete web Sudoku platform with a Go backend and a dependency-free
 vanilla-JS frontend.
@@ -6,7 +6,7 @@ vanilla-JS frontend.
 ## Features
 
 **Gameplay**
-- Daily challenge — one deterministic puzzle per day for everyone (difficulty rotates daily)
+- Daily challenge one deterministic puzzle per day for everyone (difficulty rotates daily)
 - Endless random puzzles in four difficulties: Easy, Medium, Hard, Expert
 - Pencil notes (3×3 mini-grid per cell), auto-removed when a number is placed
 - Undo / redo (keyboard: `Ctrl+Z`, `Ctrl+Y` / `Ctrl+Shift+Z`)
