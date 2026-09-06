@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -12,7 +13,24 @@ import (
 	"github.com/chiragbaral/sudoku/backend-go/board"
 )
 
-const defaultFilePath = "data/puzzles.json"
+// dataFileEnvVar overrides the on-disk puzzle store location when set.
+const dataFileEnvVar = "SUDOKU_DATA_FILE"
+
+// defaultFilePath resolves where puzzles are stored.
+// It anchors to this source file's directory so the server and CLI work
+// regardless of the current working directory. Set SUDOKU_DATA_FILE to
+// override for deployments.
+func defaultFilePath() string {
+	if override := os.Getenv(dataFileEnvVar); override != "" {
+		return override
+	}
+	_, file, _, ok := runtime.Caller(0)
+	if ok {
+		dir := filepath.Dir(file) // .../backend-go/storage
+		return filepath.Join(dir, "..", "data", "puzzles.json")
+	}
+	return filepath.Join("data", "puzzles.json")
+}
 
 var mu sync.Mutex
 
@@ -22,6 +40,8 @@ type PuzzleRecord struct {
 	Puzzle     string    `json:"puzzle"`
 	Solution   string    `json:"solution"`
 	CreatedAt  time.Time `json:"createdAt"`
+	IsDaily    bool      `json:"isDaily,omitempty"`
+	Date       string    `json:"date,omitempty"`
 }
 
 // NewPuzzleRecord converts boards into a persisted record.
@@ -74,11 +94,11 @@ func List() ([]PuzzleRecord, error) {
 
 // DefaultPath returns the on-disk file used for storage.
 func DefaultPath() string {
-	return defaultFilePath
+	return defaultFilePath()
 }
 
 func loadAllLocked() ([]PuzzleRecord, error) {
-	data, err := os.ReadFile(defaultFilePath)
+	data, err := os.ReadFile(defaultFilePath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []PuzzleRecord{}, nil
@@ -94,7 +114,7 @@ func loadAllLocked() ([]PuzzleRecord, error) {
 }
 
 func writeAllLocked(records []PuzzleRecord) error {
-	if err := os.MkdirAll(filepath.Dir(defaultFilePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(defaultFilePath()), 0o755); err != nil {
 		return err
 	}
 
@@ -103,7 +123,7 @@ func writeAllLocked(records []PuzzleRecord) error {
 		return err
 	}
 
-	return os.WriteFile(defaultFilePath, data, 0o644)
+	return os.WriteFile(defaultFilePath(), data, 0o644)
 }
 
 func boardToString(b board.Board) string {

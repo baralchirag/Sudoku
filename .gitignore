@@ -15,6 +15,9 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
+# Local tooling (flyctl binary downloaded for deploys)
+.tools/
+
 # OS files
 .DS_Store
 
@@ -29,3 +32,9 @@ coverage/
 data/*.sqlite
 data/*.db
 data/*.sqlite3
+
+# Documentation (mirrors .dockerignore)
+*.md
+docs/
+
+docs/*

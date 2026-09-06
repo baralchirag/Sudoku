@@ -1,0 +1,12 @@
+.git
+.gitignore
+.tools
+.env*
+*.md
+design.md
+plan.md
+docs/
+backend-go/*_test.go
+backend-go/board/*_test.go
+backend-go/generator/*_test.go
+backend-go/storage/*_test.go

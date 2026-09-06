@@ -146,7 +146,7 @@ func main() {
 
 	case "server":
 		serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
-		port := serverCmd.Int("port", 8080, "port to serve the HTTP API on")
+		port := serverCmd.Int("port", 8090, "port to serve the HTTP API (and frontend, when present) on")
 		serverCmd.Parse(os.Args[2:])
 
 		startServer(*port)

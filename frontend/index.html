@@ -3,26 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Play daily Sudoku challenges and endless puzzles from Easy to Expert, with notes, hints and undo.">
     <title>Sudoku</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='7' y='7' width='86' height='86' rx='20' fill='white' stroke='%23171717' stroke-width='8'/><path d='M35 7v86M65 7v86M7 35h86M7 65h86' stroke='%23171717' stroke-width='6'/><rect x='35' y='35' width='30' height='30' fill='%23F26A2E'/></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Sudoku</h1>
-    <div id="controls">
-        <div id="difficulty-group" aria-label="Difficulty selector">
-            <button class="difficulty-option active" type="button" data-difficulty="easy">Easy</button>
-            <button class="difficulty-option" type="button" data-difficulty="medium">Medium</button>
-            <button class="difficulty-option" type="button" data-difficulty="hard">Hard</button>
-            <button class="difficulty-option" type="button" data-difficulty="expert">Expert</button>
-        </div>
-        <div id="timer">00:00</div>
-        <div id="actions">
-            <button id="new-btn" class="control-button" type="button">New Puzzle</button>
-            <button id="reset-btn" class="control-button" type="button">Reset Puzzle</button>
-            <button id="clear-btn" class="control-button" type="button">Clear Board</button>
+    <div id="app" class="app">
+        <header class="topbar">
+            <div class="title-wrap">
+                <h1 class="logo">SUDOKU</h1>
+                <span id="daily-badge" class="daily-badge hidden" title="Daily challenge completed today">✓ Solved</span>
+            </div>
+            <nav class="mode-tabs" id="mode-tabs" aria-label="Game mode">
+                <button type="button" class="mode-tab active" data-mode="play">Play</button>
+                <button type="button" class="mode-tab" data-mode="daily">Daily</button>
+            </nav>
+        </header>
+
+        <main>
+            <section id="puzzle-meta" class="puzzle-meta">
+                <span id="meta-label" class="meta-label">Easy puzzle</span>
+                <span class="meta-stats">
+                    <span id="timer" class="pill">00:00</span>
+                </span>
+            </section>
+
+            <section id="difficulty-row" class="difficulty-row" aria-label="Difficulty">
+                <button type="button" class="diff-btn active" data-diff="easy">Easy</button>
+                <button type="button" class="diff-btn" data-diff="medium">Medium</button>
+                <button type="button" class="diff-btn" data-diff="hard">Hard</button>
+                <button type="button" class="diff-btn" data-diff="expert">Expert</button>
+            </section>
+
+            <div id="notice" class="notice hidden"></div>
+
+            <section class="board-wrap" aria-label="Sudoku board">
+                <div id="board" class="board" role="grid" aria-label="9 by 9 sudoku grid"></div>
+            </section>
+
+            <section class="toolbar" aria-label="Game tools">
+                <div class="toolbar-group" id="toolbar-left">
+                    <button type="button" id="notes-btn" class="tool-btn" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Notes</button>
+                    <button type="button" id="undo-btn" class="tool-btn" disabled><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Undo</button>
+                    <button type="button" id="redo-btn" class="tool-btn" disabled><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Redo</button>
+                    <button type="button" id="erase-btn" class="tool-btn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>Erase</button>
+                    <button type="button" id="hint-btn" class="tool-btn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg>Hint <span id="hint-count" class="count-badge"></span></button>
+                </div>
+            </section>
+
+            <section class="numpad" aria-label="Number pad">
+                <div class="numpad-digits" id="numpad"></div>
+            </section>
+
+            <section class="actions" aria-label="Game actions">
+                <button type="button" id="clear-btn" class="action-btn">Clear</button>
+                <button type="button" id="restart-btn" class="action-btn">Restart</button>
+                <button type="button" id="new-btn" class="action-btn primary">New Puzzle</button>
+            </section>
+
+            <p class="legend">Select a cell, then type a number or tap the pad.<br>1–9 fill · Backspace erase · Arrows move · N toggles notes · H reveals a hint</p>
+        </main>
+    </div>
+
+    <div id="overlay-root" class="overlay-root hidden">
+        <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+            <button type="button" id="overlay-close" class="overlay-close" aria-label="Close">✕</button>
+            <div id="overlay-emoji" class="overlay-emoji" aria-hidden="true"></div>
+            <h2 id="overlay-title">Solved!</h2>
+            <div id="overlay-body" class="overlay-body"></div>
+            <div class="overlay-actions">
+                <button type="button" id="overlay-primary" class="action-btn primary">Play again</button>
+                <button type="button" id="overlay-secondary" class="action-btn hidden">Close</button>
+            </div>
         </div>
     </div>
-    <div id="sudoku-board"></div>
+
     <script src="app.js"></script>
 </body>
 </html>
