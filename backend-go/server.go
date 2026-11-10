@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,18 +15,39 @@ import (
 
 	"github.com/chiragbaral/sudoku/backend-go/board"
 	"github.com/chiragbaral/sudoku/backend-go/generator"
+	"github.com/chiragbaral/sudoku/backend-go/logic"
 	"github.com/chiragbaral/sudoku/backend-go/storage"
 )
 
 const dateLayout = "2006-01-02"
 
+// puzzleResponse is what the client receives for a puzzle. It deliberately
+// carries no solution: the server checks moves (/validate) and reveals cells
+// (/hint), so the answer never sits in the browser.
 type puzzleResponse struct {
 	Puzzle     string `json:"puzzle"`
-	Solution   string `json:"solution"`
 	Difficulty string `json:"difficulty"`
+	Technique  string `json:"technique,omitempty"`
 	Date       string `json:"date,omitempty"`
 	IsDaily    bool   `json:"isDaily,omitempty"`
 }
+
+func recordResponse(rec storage.PuzzleRecord) puzzleResponse {
+	return puzzleResponse{
+		Puzzle:     rec.Puzzle,
+		Difficulty: rec.Difficulty,
+		Technique:  rec.Technique,
+		Date:       rec.Date,
+		IsDaily:    rec.IsDaily,
+	}
+}
+
+// maxBodyBytes caps POST bodies; a request only ever carries two 81-char
+// boards and an index.
+const maxBodyBytes = 4 << 10
+
+// nowFunc is the clock, swappable in tests.
+var nowFunc = time.Now
 
 func startServer(port int) {
 	mux := http.NewServeMux()
@@ -58,6 +78,8 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		requireMethod(w, r, http.MethodGet, handleDaily)
 	case "/api/puzzle/validate":
 		requireMethod(w, r, http.MethodPost, handleValidate)
+	case "/api/puzzle/hint":
+		requireMethod(w, r, http.MethodPost, handleHint)
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
@@ -116,146 +138,136 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePuzzle(w http.ResponseWriter, r *http.Request) {
-	difficulty := r.URL.Query().Get("difficulty")
+	difficulty := strings.ToLower(r.URL.Query().Get("difficulty"))
 	if difficulty == "" {
 		difficulty = "medium"
 	}
-	if _, err := parseDifficulty(difficulty); err != nil {
+	diff, err := parseDifficulty(difficulty)
+	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
-	records, err := storage.List()
-	if err == nil && len(records) > 0 {
-		var candidates []storage.PuzzleRecord
-		for _, rec := range records {
-			if strings.EqualFold(rec.Difficulty, difficulty) && !rec.IsDaily {
-				candidates = append(candidates, rec)
-			}
-		}
-		if len(candidates) == 0 { // fall back to any record of that difficulty
-			for _, rec := range records {
-				if strings.EqualFold(rec.Difficulty, difficulty) {
-					candidates = append(candidates, rec)
-				}
-			}
-		}
-		if len(candidates) > 0 {
-			pick := candidates[rand.Intn(len(candidates))]
-			resp := puzzleResponse{Puzzle: pick.Puzzle, Solution: pick.Solution, Difficulty: pick.Difficulty}
-			writeJSON(w, http.StatusOK, resp)
-			return
-		}
+	rec, ok, err := storage.Random(difficulty)
+	if err != nil {
+		log.Printf("error: reading puzzle store: %v", err)
+	}
+	if ok {
+		resp := recordResponse(rec)
+		resp.Date, resp.IsDaily = "", false
+		writeJSON(w, http.StatusOK, resp)
+		return
 	}
 
-	// Fallback: generate on the fly (does not persist — avoids pool pollution).
-	diff, _ := parseDifficulty(difficulty)
+	// Empty pool: generate on the fly. Not persisted, to keep the pool
+	// curated; /validate and /hint re-solve unknown puzzles.
 	gen := generator.GeneratePuzzleRecord(diff)
-	resp := puzzleResponse{Puzzle: boardToString(gen.Puzzle), Solution: boardToString(gen.Solution), Difficulty: strings.ToLower(difficulty)}
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, puzzleResponse{
+		Puzzle:     boardToString(gen.Puzzle),
+		Difficulty: difficulty,
+		Technique:  gen.Technique.String(),
+	})
 }
 
-// handleDaily serves the deterministic daily puzzle for a given date
-// (defaults to today, UTC) and difficulty (defaults to medium). The puzzle is
-// picked from the non-daily pool seeded by the date, so everyone sees the
-// same puzzle all day and it does not repeat across days until the pool is
-// exhausted. The selection is stored as a daily record for later lookup.
-func handleDaily(w http.ResponseWriter, r *http.Request) {
-	difficulty := r.URL.Query().Get("difficulty")
+// dailyLevels is the order the daily challenge rotates through.
+var dailyLevels = []string{"easy", "medium", "hard", "expert"}
 
+// handleDaily serves the daily puzzle for a date (default: today, UTC).
+//
+// Players are in every timezone, so "today" spans yesterday through tomorrow
+// in UTC; dates in that window get a puzzle assigned on first request. Later
+// dates are refused so nobody can preview upcoming challenges, and earlier
+// dates are served only if they were assigned at the time — otherwise any
+// client could grow the store by walking the calendar.
+//
+// The puzzle is picked from the pool deterministically from the date, skipping
+// puzzles already used as a daily, and stored so it stays fixed all day.
+func handleDaily(w http.ResponseWriter, r *http.Request) {
+	difficulty := strings.ToLower(r.URL.Query().Get("difficulty"))
+
+	today := nowFunc().UTC().Truncate(24 * time.Hour)
 	date := r.URL.Query().Get("date")
 	if date == "" {
-		date = time.Now().UTC().Format(dateLayout)
+		date = today.Format(dateLayout)
 	}
 	parsedDate, err := time.Parse(dateLayout, date)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid date, want YYYY-MM-DD"})
 		return
 	}
+	date = parsedDate.Format(dateLayout) // canonical form
 
-	// No difficulty requested: rotate through the levels by day so the daily
-	// challenge stays varied while remaining identical for everyone that day.
 	if difficulty == "" {
-		levels := []string{"easy", "medium", "hard", "expert"}
 		dayIndex := int(parsedDate.Unix() / 86400)
-		difficulty = levels[((dayIndex%len(levels))+len(levels))%len(levels)]
+		difficulty = dailyLevels[((dayIndex%len(dailyLevels))+len(dailyLevels))%len(dailyLevels)]
 	}
-	if _, err := parseDifficulty(difficulty); err != nil {
+	diff, err := parseDifficulty(difficulty)
+	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
-	records, err := storage.List()
+	daysFromToday := int(parsedDate.Sub(today).Hours() / 24)
+	if daysFromToday > 1 {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "the daily puzzle for " + date + " is not available yet"})
+		return
+	}
+
+	if rec, ok, err := storage.Daily(date, difficulty); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read puzzle store"})
+		return
+	} else if ok {
+		writeJSON(w, http.StatusOK, recordResponse(rec))
+		return
+	}
+
+	if daysFromToday < -1 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no daily puzzle was played on " + date})
+		return
+	}
+
+	pool, err := storage.Pool(difficulty)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read puzzle store"})
 		return
 	}
 
-	// A daily puzzle already assigned for this date wins.
-	for _, rec := range records {
-		if rec.IsDaily && rec.Date == date && strings.EqualFold(rec.Difficulty, difficulty) {
-			resp := puzzleResponse{Puzzle: rec.Puzzle, Solution: rec.Solution, Difficulty: rec.Difficulty, Date: rec.Date, IsDaily: true}
-			writeJSON(w, http.StatusOK, resp)
-			return
-		}
-	}
-
-	// Collect the non-daily pool for this difficulty, and remember every
-	// puzzle string that has already been used as a daily challenge.
-	var pool []storage.PuzzleRecord
-	usedAsDaily := map[string]bool{}
-	for _, rec := range records {
-		if rec.IsDaily {
-			usedAsDaily[rec.Puzzle] = true
-		} else if strings.EqualFold(rec.Difficulty, difficulty) {
-			pool = append(pool, rec)
-		}
-	}
-
-	// Deterministically index into the pool from the date.
-	seed := hashString(date + ":" + strings.ToLower(difficulty))
-
-	var chosen *storage.PuzzleRecord
+	var chosen storage.PuzzleRecord
 	if len(pool) > 0 {
-		start := seed % uint64(len(pool))
+		start := int(hashString(date+":"+difficulty) % uint64(len(pool)))
+		chosen = pool[start] // reused if every puzzle has already been a daily
 		for i := 0; i < len(pool); i++ {
-			cand := pool[(int(start)+i)%len(pool)]
-			if !usedAsDaily[cand.Puzzle] {
-				c := cand
-				chosen = &c
+			cand := pool[(start+i)%len(pool)]
+			used, err := storage.UsedAsDaily(cand.Puzzle)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read puzzle store"})
+				return
+			}
+			if !used {
+				chosen = cand
 				break
 			}
 		}
-		if chosen == nil { // entire pool has been a daily already — reuse oldest pick
-			c := pool[int(start)%len(pool)]
-			chosen = &c
-		}
-	}
-
-	if chosen == nil { // empty pool: generate one and save it so today stays stable
-		diff, _ := parseDifficulty(difficulty)
+	} else {
 		gen := generator.GeneratePuzzleRecord(diff)
-		chosen = &storage.PuzzleRecord{
-			Difficulty: strings.ToLower(difficulty),
-			Puzzle:     boardToString(gen.Puzzle),
-			Solution:   boardToString(gen.Solution),
-		}
+		chosen = storage.NewPuzzleRecord(difficulty, gen.Puzzle, gen.Solution)
+		chosen.Technique = gen.Technique.String()
 	}
 
-	daily := storage.PuzzleRecord{
+	daily, err := storage.SaveDaily(storage.PuzzleRecord{
 		Difficulty: chosen.Difficulty,
 		Puzzle:     chosen.Puzzle,
 		Solution:   chosen.Solution,
+		Technique:  chosen.Technique,
 		CreatedAt:  time.Now().UTC(),
-		IsDaily:    true,
 		Date:       date,
+	})
+	if err != nil {
+		log.Printf("error: persisting daily puzzle: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store daily puzzle"})
+		return
 	}
-	if err := storage.Save(daily); err != nil {
-		log.Printf("warning: failed to persist daily puzzle: %v", err)
-	}
-
-	resp := puzzleResponse{Puzzle: daily.Puzzle, Solution: daily.Solution, Difficulty: daily.Difficulty, Date: daily.Date, IsDaily: true}
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, recordResponse(daily))
 }
 
 func hashString(s string) uint64 {
@@ -264,56 +276,160 @@ func hashString(s string) uint64 {
 	return h.Sum64()
 }
 
-// validateRequest carries the puzzle plus the player's filled-in board.
-type validateRequest struct {
+// boardRequest carries a puzzle and the player's current board.
+type boardRequest struct {
 	Puzzle string `json:"puzzle"`
 	Board  string `json:"board"`
+	// Index optionally names the cell to reveal (hint only).
+	Index *int `json:"index,omitempty"`
 }
 
-// handleValidate checks a fully filled board against the puzzle's unique
-// solution. It reports how many cells are still empty, how many are wrong,
-// and whether the board is complete and correct.
-func handleValidate(w http.ResponseWriter, r *http.Request) {
-	var req validateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
-		return
-	}
-	defer r.Body.Close()
+// apiError is an error with the HTTP status it should produce.
+type apiError struct {
+	status int
+	msg    string
+}
 
+func (e *apiError) Error() string { return e.msg }
+
+// decodeBoardRequest parses the body and resolves the puzzle's solution.
+func decodeBoardRequest(w http.ResponseWriter, r *http.Request) (boardRequest, board.Board, board.Board, board.Board, *apiError) {
+	var req boardRequest
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, nil, nil, nil, &apiError{http.StatusBadRequest, "invalid JSON"}
+	}
 	puzzle, err := parseBoard(req.Puzzle)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid puzzle: " + err.Error()})
-		return
+		return req, nil, nil, nil, &apiError{http.StatusBadRequest, "invalid puzzle: " + err.Error()}
 	}
 	boardIn, err := parseBoard(req.Board)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid board: " + err.Error()})
-		return
+		return req, nil, nil, nil, &apiError{http.StatusBadRequest, "invalid board: " + err.Error()}
 	}
+	solution, apiErr := solutionFor(puzzle)
+	if apiErr != nil {
+		return req, nil, nil, nil, apiErr
+	}
+	return req, puzzle, boardIn, solution, nil
+}
 
+// minClues is the fewest givens a uniquely solvable Sudoku can have.
+const minClues = 17
+
+// solutionFor looks the puzzle up in the store, and otherwise solves it.
+// Puzzles below 17 clues cannot have a unique answer and are rejected before
+// any search runs.
+func solutionFor(puzzle board.Board) (board.Board, *apiError) {
+	if sol, ok, err := storage.SolutionFor(boardToString(puzzle)); err == nil && ok {
+		if b, err := parseBoard(sol); err == nil {
+			return b, nil
+		}
+	}
+	clues := 0
+	for _, v := range puzzle {
+		if v != 0 {
+			clues++
+		}
+	}
+	if clues < minClues {
+		return nil, &apiError{http.StatusUnprocessableEntity, "puzzle has fewer than 17 clues and cannot have a unique solution"}
+	}
 	solution, ok := board.Solve(puzzle)
 	if !ok {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "puzzle has no solution"})
+		return nil, &apiError{http.StatusUnprocessableEntity, "puzzle has no solution"}
+	}
+	return solution, nil
+}
+
+// handleValidate checks the player's board against the solution and reports
+// which cells are wrong. It never returns the solution itself.
+func handleValidate(w http.ResponseWriter, r *http.Request) {
+	_, _, boardIn, solution, apiErr := decodeBoardRequest(w, r)
+	if apiErr != nil {
+		writeJSON(w, apiErr.status, map[string]string{"error": apiErr.msg})
 		return
 	}
 
-	empty, wrong := 0, 0
+	empty := 0
+	wrong := []int{}
 	for i := range solution {
-		if boardIn[i] == 0 {
+		switch {
+		case boardIn[i] == 0:
 			empty++
-		} else if boardIn[i] != solution[i] {
-			wrong++
+		case boardIn[i] != solution[i]:
+			wrong = append(wrong, i)
 		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"complete":   empty == 0 && wrong == 0,
-		"emptyCells": empty,
-		"wrongCells": wrong,
-		"solution":   boardToString(solution),
-		"isDaily":    false,
+		"complete":     empty == 0 && len(wrong) == 0,
+		"emptyCells":   empty,
+		"wrongCells":   len(wrong),
+		"wrongIndices": wrong,
 	})
+}
+
+// hintResponse reveals one cell. When the server picked the cell, it also
+// explains the logical step that finds it.
+type hintResponse struct {
+	Index       int    `json:"index"`
+	Value       int    `json:"value"`
+	Technique   string `json:"technique,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// handleHint reveals one cell. If the request names an empty cell, that cell
+// is revealed, with an explanation when a single proves it. Otherwise the server finds the simplest logical placement on
+// the player's board (ignoring their wrong entries) and explains it, falling
+// back to the first empty cell when no single is available.
+func handleHint(w http.ResponseWriter, r *http.Request) {
+	req, puzzle, boardIn, solution, apiErr := decodeBoardRequest(w, r)
+	if apiErr != nil {
+		writeJSON(w, apiErr.status, map[string]string{"error": apiErr.msg})
+		return
+	}
+
+	// Only trust the player's correct entries when reasoning.
+	known := board.New()
+	firstEmpty := -1
+	for i := range known {
+		if puzzle[i] != 0 {
+			known[i] = puzzle[i]
+		} else if boardIn[i] == solution[i] {
+			known[i] = boardIn[i]
+		} else if boardIn[i] == 0 && firstEmpty == -1 {
+			firstEmpty = i
+		}
+	}
+	if firstEmpty == -1 {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "no empty cell to reveal"})
+		return
+	}
+
+	if req.Index != nil {
+		i := *req.Index
+		if i >= 0 && i < 81 && puzzle[i] == 0 && boardIn[i] == 0 {
+			resp := hintResponse{Index: i, Value: solution[i]}
+			if step, ok := logic.ExplainCell(known, i); ok {
+				resp.Technique, resp.Description = step.Name, step.Description
+			}
+			writeJSON(w, http.StatusOK, resp)
+			return
+		}
+	}
+
+	if step, ok := logic.NextStep(known); ok && step.Index >= 0 && boardIn[step.Index] == 0 {
+		writeJSON(w, http.StatusOK, hintResponse{
+			Index:       step.Index,
+			Value:       solution[step.Index],
+			Technique:   step.Name,
+			Description: step.Description,
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, hintResponse{Index: firstEmpty, Value: solution[firstEmpty]})
 }
 
 // ---- shared helpers ----

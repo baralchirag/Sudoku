@@ -216,6 +216,13 @@ button { font-family: inherit; }
     text-align: center;
 }
 
+/* Hint explanations: neutral, left-aligned so a sentence reads naturally. */
+.notice.info {
+    background: var(--peer);
+    color: var(--ink);
+    text-align: left;
+}
+
 /* ---------- board ---------- */
 
 .board-wrap {

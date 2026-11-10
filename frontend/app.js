@@ -3,6 +3,10 @@
  * wrong entries flagged red (no mistake limit), timer (pauses when the tab
  * is hidden), win overlay, number pad with per-digit remaining counts, full
  * keyboard support, and localStorage persistence per mode.
+ *
+ * The client never holds the solution of a server puzzle: the server checks
+ * the board (/api/puzzle/validate) and reveals hints (/api/puzzle/hint). Only
+ * the built-in offline sample is checked locally.
  */
 'use strict';
 
@@ -14,7 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ? apiParam
         : (location.protocol.startsWith('http') ? '' : 'http://localhost:8090');
 
-    // Built-in sample so the page still works if the backend is offline.
+    // Built-in sample so the page still works if the backend is offline. It is
+    // the only puzzle whose solution ships to the browser.
     const SAMPLE = {
         difficulty: 'easy',
         puzzle: '530070000600195000098000060800060003400803001700020006060000280000419005000080079',
@@ -22,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const MAX_HISTORY = 300;
+    const CHECK_DELAY_MS = 120;
     const PROGRESS_KEY = 'sudoku.progress';
     const STATS_KEY = 'sudoku.stats';
     const LAST_MODE_KEY = 'sudoku.lastMode';
@@ -61,7 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
         difficulty: 'easy',
         date: todayStr(),
         puzzle: '',         // 81-char given string
-        solution: '',       // 81-char solution string
+        technique: '',      // hardest technique the puzzle needs, from the server
+        offline: false,     // playing the built-in sample (checked locally)
+        wrong: new Map(),   // index -> value the server flagged as wrong
         board: [],          // 81 ints (0 = empty)
         notes: [],          // 81 x [false x9]
         selected: -1,
@@ -71,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
         redo: [],
         won: false,
         busy: false,
+        hintPending: false,
         timer: { started: false, running: false, acc: 0 },
     };
 
@@ -226,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         restoreSnapshot(G.history.pop());
         render();
         autosave();
+        scheduleCheck();
     }
 
     function redo() {
@@ -234,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         restoreSnapshot(G.redo.pop());
         render();
         autosave();
+        scheduleCheck();
     }
 
     // ---------- core input ----------
@@ -306,27 +317,47 @@ document.addEventListener('DOMContentLoaded', () => {
         commitChange();
     }
 
-    function useHint() {
-        if (G.won || G.busy) return;
-        let idx = -1;
-        if (G.selected !== -1 && !isGiven(G.selected) && G.board[G.selected] === 0) {
-            idx = G.selected;
-        } else {
-            for (let i = 0; i < 81; i++) {
-                if (!isGiven(i) && G.board[i] === 0) { idx = i; break; }
-            }
-        }
-        if (idx === -1) return;
+    function applyHint(idx, value, explanation) {
+        if (G.won || G.board[idx] !== 0 || isGiven(idx)) return;
         startTimer();
         pushHistory();
-        G.board[idx] = Number(G.solution[idx]);
+        G.board[idx] = value;
         G.notes[idx] = new Array(9).fill(false);
-        for (const p of peersOf(idx)) G.notes[p][G.board[idx] - 1] = false;
+        for (const p of peersOf(idx)) G.notes[p][value - 1] = false;
         G.hints++;
         G.selected = idx;
         commitChange();
+        showInfo(explanation || '');
         cells[idx].classList.add('hint-flash');
         setTimeout(() => { if (cells[idx]) cells[idx].classList.remove('hint-flash'); }, 700);
+    }
+
+    async function useHint() {
+        if (G.won || G.busy || G.hintPending) return;
+        const sel = G.selected;
+        const wantsSelected = sel !== -1 && !isGiven(sel) && G.board[sel] === 0;
+
+        if (G.offline) {
+            let idx = wantsSelected ? sel : G.board.findIndex((v, i) => v === 0 && !isGiven(i));
+            if (idx === -1) return;
+            applyHint(idx, Number(SAMPLE.solution[idx]));
+            return;
+        }
+
+        G.hintPending = true;
+        const puzzle = G.puzzle;
+        try {
+            const body = { puzzle, board: boardString() };
+            if (wantsSelected) body.index = sel;
+            const resp = await postJSON('/api/puzzle/hint', body);
+            if (G.puzzle !== puzzle) return; // a new game started meanwhile
+            const explanation = resp.description ? `${resp.technique}: ${resp.description}` : '';
+            applyHint(resp.index, resp.value, explanation);
+        } catch (e) {
+            showInfo('Could not reach the server for a hint. Try again in a moment.');
+        } finally {
+            G.hintPending = false;
+        }
     }
 
     function toggleNotes() {
@@ -349,17 +380,64 @@ document.addEventListener('DOMContentLoaded', () => {
         return chips.join('');
     }
 
-    function checkWin() {
-        for (let i = 0; i < 81; i++) {
-            if (G.board[i] !== Number(G.solution[i])) return false;
+    // ---------- checking (server-side) ----------
+    function boardString() {
+        return G.board.join('');
+    }
+
+    async function postJSON(path, body) {
+        const resp = await fetch(`${API_BASE}${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return resp.json();
+    }
+
+    let checkTimer = null;
+    let checkSeq = 0;
+
+    // Debounced so fast typing sends one request, not one per keystroke.
+    function scheduleCheck() {
+        clearTimeout(checkTimer);
+        if (!G.puzzle || G.won) return;
+        checkTimer = setTimeout(runCheck, CHECK_DELAY_MS);
+    }
+
+    async function runCheck() {
+        const seq = ++checkSeq;
+        const sent = boardString();
+        const puzzle = G.puzzle;
+        let result;
+        if (G.offline) {
+            result = { wrongIndices: [], complete: true };
+            for (let i = 0; i < 81; i++) {
+                const v = G.board[i];
+                if (v === 0) result.complete = false;
+                else if (v !== Number(SAMPLE.solution[i])) result.wrongIndices.push(i);
+            }
+            if (result.wrongIndices.length) result.complete = false;
+        } else {
+            try {
+                result = await postJSON('/api/puzzle/validate', { puzzle, board: sent });
+            } catch (e) {
+                return; // keep the last known marks; the next move retries
+            }
         }
-        return true;
+        // Ignore answers to stale requests or a puzzle that is no longer open.
+        if (seq !== checkSeq || G.puzzle !== puzzle) return;
+        const checked = sent.split('').map(Number);
+        G.wrong = new Map((result.wrongIndices || []).map(i => [i, checked[i]]));
+        render();
+        autosave();
+        if (result.complete && !G.won && boardString() === sent) finish();
     }
 
     function commitChange() {
         render();
         autosave();
-        if (!G.won && checkWin()) finish();
+        scheduleCheck();
     }
 
     function finish() {
@@ -416,10 +494,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---------- rendering ----------
     function metaHtml() {
+        const needs = G.technique ? ` · needs ${escapeHtml(G.technique)}` : '';
         if (G.mode === 'daily') {
-            return `${prettyDate(G.date)}<small>Daily challenge · ${G.difficulty}</small>`;
+            return `${prettyDate(G.date)}<small>Daily challenge · ${escapeHtml(G.difficulty)}${needs}</small>`;
         }
-        return `${cap(G.difficulty)} puzzle<small>Random puzzle</small>`;
+        return `${cap(escapeHtml(G.difficulty))} puzzle<small>Random puzzle${needs}</small>`;
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -484,8 +567,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (i === G.selected) cell.classList.add('selected');
             if (peersSet.has(i)) cell.classList.add('peer');
             if (sameSet.has(i)) cell.classList.add('same');
-            // auto-check: user entries that contradict the solution show as errors
-            if (!isFixed && val !== 0 && val !== Number(G.solution[i])) cell.classList.add('wrong');
+            // Server-flagged errors, shown only while the cell still holds the checked value.
+            if (!isFixed && val !== 0 && G.wrong.get(i) === val) cell.classList.add('wrong');
 
             cell.textContent = '';
             if (val !== 0) {
@@ -529,7 +612,9 @@ document.addEventListener('DOMContentLoaded', () => {
             difficulty: G.difficulty,
             date: G.date,
             puzzle: G.puzzle,
-            solution: G.solution,
+            technique: G.technique,
+            offline: G.offline,
+            wrong: Array.from(G.wrong.entries()),
             board: G.board,
             notes: G.notes,
             hints: G.hints,
@@ -541,9 +626,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ---------- game lifecycle ----------
-    function setupGame(payload) {
+    function setupGame(payload, offline = false) {
+        clearTimeout(checkTimer);
         G.puzzle = payload.puzzle;
-        G.solution = payload.solution;
+        G.technique = payload.technique || '';
+        G.offline = offline;
+        G.wrong = new Map();
         G.difficulty = (payload.difficulty || G.difficulty).toLowerCase();
         if (payload.date) G.date = payload.date;
         G.board = new Array(81).fill(0);
@@ -560,6 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
         G.won = false;
         resetTimer();
         hideOverlay();
+        showInfo('');
         render();
         updateDailyBadge();
         autosave();
@@ -571,8 +660,13 @@ document.addEventListener('DOMContentLoaded', () => {
         G.mode = saved.mode || 'play';
         G.difficulty = saved.difficulty || 'easy';
         G.date = saved.date || todayStr();
+        clearTimeout(checkTimer);
         G.puzzle = saved.puzzle;
-        G.solution = saved.solution;
+        G.technique = saved.technique || '';
+        // Saves from before the server-side checking carry a solution; only the
+        // offline sample is ever checked locally.
+        G.offline = saved.offline === true || saved.puzzle === SAMPLE.puzzle;
+        G.wrong = new Map(Array.isArray(saved.wrong) ? saved.wrong : []);
         G.board = Array.isArray(saved.board) && saved.board.length === 81
             ? saved.board.map(v => Number(v) || 0)
             : new Array(81).fill(0);
@@ -590,6 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
             acc: Number(saved.timerAcc) || 0,
         };
         hideOverlay();
+        showInfo('');
         updateDailyBadge();
         if (G.won && G.mode === 'daily' && !stats.daily[G.date]) {
             stats.daily[G.date] = { seconds: G.timer.acc, hints: G.hints };
@@ -605,6 +700,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 showOverlay('win', 'Puzzle solved!', chips, 'Play again', () => newGame(), false);
             }
+        } else {
+            scheduleCheck(); // refresh error marks against the server
         }
         return true;
     }
@@ -628,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => {
                 if (seq !== loadSeq || G.mode !== myMode) return;
                 // offline: fall back to built-in sample puzzle
-                setupGame({ ...SAMPLE, difficulty: SAMPLE.difficulty });
+                setupGame({ puzzle: SAMPLE.puzzle, difficulty: SAMPLE.difficulty }, true);
                 showNotice(true);
             })
             .finally(() => {
@@ -664,6 +761,8 @@ document.addEventListener('DOMContentLoaded', () => {
         G.redo = [];
         G.won = false;
         G.selected = -1;
+        G.wrong = new Map();
+        clearTimeout(checkTimer);
         resetTimer();
         render();
         updateDailyBadge();
@@ -682,10 +781,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showNotice(on) {
+        el.notice.classList.remove('info');
         el.notice.classList.toggle('hidden', !on);
         el.notice.textContent = on
             ? '⚠️ Server unreachable — showing a built-in sample. Start the backend for fresh puzzles.'
             : '';
+    }
+
+    // Shows a hint explanation (or clears it with an empty string). The
+    // offline warning takes precedence.
+    function showInfo(text) {
+        if (G.offline) return;
+        el.notice.classList.toggle('hidden', !text);
+        el.notice.classList.toggle('info', !!text);
+        el.notice.textContent = text;
     }
 
     function updateDailyBadge() {
