@@ -8,12 +8,13 @@ import (
 
 	"github.com/chiragbaral/sudoku/backend-go/board"
 	"github.com/chiragbaral/sudoku/backend-go/generator"
+	"github.com/chiragbaral/sudoku/backend-go/logic"
 	"github.com/chiragbaral/sudoku/backend-go/storage"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("expected 'generate', 'pool', 'list', 'solve', or 'verify' subcommands")
+		fmt.Println("expected 'generate', 'pool', 'list', 'solve', 'verify', 'grade', or 'server' subcommands")
 		os.Exit(1)
 	}
 
@@ -30,19 +31,23 @@ func main() {
 		}
 
 		record := generator.GeneratePuzzleRecord(diff)
-		if err := storage.Save(storage.NewPuzzleRecord(*difficultyStr, record.Puzzle, record.Solution)); err != nil {
+		rec := storage.NewPuzzleRecord(*difficultyStr, record.Puzzle, record.Solution)
+		rec.Technique = record.Technique.String()
+		if err := storage.Save(rec); err != nil {
 			fmt.Printf("Error saving puzzle: %v\n", err)
 			os.Exit(1)
 		}
 
 		puzzle := record.Puzzle
 		printBoard(puzzle)
+		fmt.Printf("%d clues, hardest technique: %s\n", record.Clues, record.Technique)
 		fmt.Printf("Saved puzzle to %s\n", storage.DefaultPath())
 
 	case "pool":
 		poolCmd := flag.NewFlagSet("pool", flag.ExitOnError)
 		difficultyStr := poolCmd.String("difficulty", "all", "pool difficulty: easy, medium, hard, expert, or all")
 		count := poolCmd.Int("count", 10, "number of puzzles to generate per difficulty")
+		replace := poolCmd.Bool("replace", false, "replace the existing pool instead of appending (daily records are kept)")
 		poolCmd.Parse(os.Args[2:])
 
 		if *count <= 0 {
@@ -78,11 +83,17 @@ func main() {
 		for _, lvl := range levels {
 			for i := 0; i < *count; i++ {
 				generated := generator.GeneratePuzzleRecord(lvl.diff)
-				records = append(records, storage.NewPuzzleRecord(lvl.name, generated.Puzzle, generated.Solution))
+				rec := storage.NewPuzzleRecord(lvl.name, generated.Puzzle, generated.Solution)
+				rec.Technique = generated.Technique.String()
+				records = append(records, rec)
 			}
 		}
 
-		if err := storage.SaveMany(records); err != nil {
+		save := storage.SaveMany
+		if *replace {
+			save = storage.ReplacePool
+		}
+		if err := save(records); err != nil {
 			fmt.Printf("Error saving pool: %v\n", err)
 			os.Exit(1)
 		}
@@ -144,6 +155,30 @@ func main() {
 			fmt.Println("Puzzle does not have a unique solution.")
 		}
 
+	case "grade":
+		gradeCmd := flag.NewFlagSet("grade", flag.ExitOnError)
+		boardStr := gradeCmd.String("board", "", "puzzle to grade as a string of 81 numbers")
+		verbose := gradeCmd.Bool("steps", false, "print every logical step")
+		gradeCmd.Parse(os.Args[2:])
+
+		puzzle, err := parseBoard(*boardStr)
+		if err != nil {
+			fmt.Printf("Error parsing board: %v\n", err)
+			os.Exit(1)
+		}
+		res := logic.Solve(puzzle)
+		if *verbose {
+			for i, s := range res.Steps {
+				fmt.Printf("%3d. [%s] %s\n", i+1, s.Name, s.Description)
+			}
+		}
+		if !res.Solved {
+			fmt.Printf("Logic stalls after %d steps: this puzzle needs techniques beyond %s (or guessing).\n", len(res.Steps), logic.Swordfish)
+			os.Exit(2)
+		}
+		levels := []string{"easy", "medium", "hard", "expert"}
+		fmt.Printf("Grade: %s (hardest technique: %s, %d steps)\n", levels[res.Level()], res.Hardest, len(res.Steps))
+
 	case "server":
 		serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
 		port := serverCmd.Int("port", 8090, "port to serve the HTTP API (and frontend, when present) on")
@@ -152,7 +187,7 @@ func main() {
 		startServer(*port)
 
 	default:
-		fmt.Println("expected 'generate', 'pool', 'list', 'solve', 'verify', or 'server' subcommands")
+		fmt.Println("expected 'generate', 'pool', 'list', 'solve', 'verify', 'grade', or 'server' subcommands")
 		os.Exit(1)
 	}
 }
