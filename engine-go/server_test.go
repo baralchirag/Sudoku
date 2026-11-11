@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chiragbaral/sudoku/backend-go/storage"
+	"github.com/baralchirag/sudoku/engine-go/storage"
 )
 
 func stringsReader(s string) *strings.Reader {

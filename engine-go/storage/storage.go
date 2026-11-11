@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chiragbaral/sudoku/backend-go/board"
+	"github.com/baralchirag/sudoku/engine-go/board"
 )
 
 // dataFileEnvVar overrides the on-disk puzzle store location when set.

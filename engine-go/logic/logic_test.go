@@ -3,9 +3,9 @@ package logic_test
 import (
 	"testing"
 
-	"github.com/chiragbaral/sudoku/backend-go/board"
-	"github.com/chiragbaral/sudoku/backend-go/generator"
-	"github.com/chiragbaral/sudoku/backend-go/logic"
+	"github.com/baralchirag/sudoku/engine-go/board"
+	"github.com/baralchirag/sudoku/engine-go/generator"
+	"github.com/baralchirag/sudoku/engine-go/logic"
 )
 
 func parse(t *testing.T, s string) board.Board {

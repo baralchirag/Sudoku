@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/chiragbaral/sudoku/backend-go/board"
+	"github.com/baralchirag/sudoku/engine-go/board"
 )
 
 func TestGenerateFullBoard(t *testing.T) {

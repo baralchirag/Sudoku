@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/chiragbaral/sudoku/backend-go/board"
-	"github.com/chiragbaral/sudoku/backend-go/generator"
-	"github.com/chiragbaral/sudoku/backend-go/logic"
-	"github.com/chiragbaral/sudoku/backend-go/storage"
+	"github.com/baralchirag/sudoku/engine-go/board"
+	"github.com/baralchirag/sudoku/engine-go/generator"
+	"github.com/baralchirag/sudoku/engine-go/logic"
+	"github.com/baralchirag/sudoku/engine-go/storage"
 )
 
 func main() {

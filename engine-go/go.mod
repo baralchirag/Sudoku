@@ -1,3 +1,3 @@
-module github.com/chiragbaral/sudoku/backend-go
+module github.com/baralchirag/sudoku/engine-go
 
 go 1.20

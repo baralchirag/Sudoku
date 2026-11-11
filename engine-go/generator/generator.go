@@ -4,8 +4,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/chiragbaral/sudoku/backend-go/board"
-	"github.com/chiragbaral/sudoku/backend-go/logic"
+	"github.com/baralchirag/sudoku/engine-go/board"
+	"github.com/baralchirag/sudoku/engine-go/logic"
 )
 
 // Difficulty represents the puzzle's difficulty level.

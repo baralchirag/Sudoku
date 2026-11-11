@@ -3,7 +3,7 @@ package generator
 import (
 	"testing"
 
-	"github.com/chiragbaral/sudoku/backend-go/logic"
+	"github.com/baralchirag/sudoku/engine-go/logic"
 )
 
 func TestGeneratedPuzzlesMatchTheirGrade(t *testing.T) {

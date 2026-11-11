@@ -12,7 +12,7 @@ import (
 	"math/bits"
 	"strings"
 
-	"github.com/chiragbaral/sudoku/backend-go/board"
+	"github.com/baralchirag/sudoku/engine-go/board"
 )
 
 // Technique is a human solving technique, ordered from simplest to hardest.
