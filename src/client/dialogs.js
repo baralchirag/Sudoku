@@ -92,6 +92,8 @@ export function leaderboardTable(top, meName) {
 
 // ---- completion ----
 
+const fill = (el, ...children) => el.replaceChildren(...children.filter(Boolean));
+
 /**
  * Shown when a board is solved. For ranked dailies without a saved name it
  * asks for one before submitting; afterwards it shows rank, percentile and the
@@ -124,15 +126,15 @@ export function completionDialog({ game, submit, onClose }) {
     if (r.verified && !r.plausible) notes.push('That was faster than our human limit, so it was not ranked.');
     if (r.duplicate) notes.push('This game was already on the board.');
 
-    body.replaceChildren(
+    fill(body,
       header,
       s.mode === 'daily' ? facts : null,
-      r.hist ? histogram(r, r.ms) : null,
-      r.hist ? h('p', { class: 'caption' }, 'Solve times today across all verified players. Yours is highlighted.') : null,
+      r.total ? histogram(r, r.ms) : null,
+      r.total ? h('p', { class: 'caption' }, 'Solve times today across all verified players. Yours is highlighted.') : null,
       notes.length ? h('p', { class: 'caption' }, notes.join(' ')) : null,
       r.top ? leaderboardTable(r.top, settings.name || 'Anonymous') : null,
     );
-    foot.replaceChildren(
+    fill(foot,
       s.mode === 'daily'
         ? h('button', {
             class: 'btn btn--accent', type: 'button',
@@ -142,6 +144,9 @@ export function completionDialog({ game, submit, onClose }) {
               toast(how === 'copied' ? 'Result copied to clipboard' : how === 'shared' ? 'Shared' : 'Could not share');
             },
           }, icon('share'), 'Share')
+        : null,
+      s.mode === 'practice'
+        ? h('a', { class: 'btn btn--primary', href: `/practice/${s.level}`, onclick: () => dlg.close() }, 'Next puzzle')
         : null,
       h('a', { class: 'btn', href: '/', onclick: () => dlg.close() }, 'Back to today'),
     );
