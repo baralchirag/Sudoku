@@ -1,8 +1,8 @@
-# Backend (Go)
+# Engine (Go)
 
-Sudoku engine, puzzle pool, HTTP API, and CLI. The server also serves the
-static frontend from the sibling `frontend/` directory, so `go run . server`
-runs the whole platform on one origin.
+The puzzle factory. It generates puzzles, grades them by the techniques a human
+needs, and stores the graded pool that `scripts/export-bank.mjs` turns into the
+Worker's puzzle bank. It also ships a CLI and a standalone JSON API.
 
 Packages:
 
