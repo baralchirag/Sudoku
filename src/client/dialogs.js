@@ -194,7 +194,7 @@ export function leaderboardDialog(date, initialLevel = 'easy') {
     content.replaceChildren(h('p', { class: 'empty' }, 'Loading…'));
     try {
       const lb = await api.leaderboard(date, level);
-      content.replaceChildren(
+      fill(content,
         lb.total ? histogram(lb, null) : null,
         lb.total ? h('p', { class: 'caption' }, `${lb.total} verified solver${lb.total === 1 ? '' : 's'} today.`) : null,
         leaderboardTable(lb.top, store.settings().name),
