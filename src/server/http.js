@@ -19,8 +19,7 @@ const SECURITY_HEADERS = {
 export const CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' https://fonts.googleapis.com",
-  "font-src https://fonts.gstatic.com",
+  "style-src 'self'",
   "img-src 'self' data:",
   "connect-src 'self'",
   "base-uri 'none'",

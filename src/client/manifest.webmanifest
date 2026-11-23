@@ -3,7 +3,7 @@
   "short_name": "Sudoku",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4efe6",
-  "theme_color": "#1b1a17",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
 }
