@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
   highlightSame: true,
   autoNotes: true,
   showConflicts: true,
+  seenHelp: false,
 };
 
 export const store = {
@@ -65,14 +66,5 @@ export const store = {
     const all = this.results();
     all[date] = { ...(all[date] || {}), [level]: result };
     write('results', all);
-  },
-
-  practiceStats() {
-    return read('practice', { easy: [], medium: [], hard: [], expert: [] });
-  },
-  savePractice(level, ms) {
-    const all = this.practiceStats();
-    all[level] = [...(all[level] || []), ms].slice(-50);
-    write('practice', all);
   },
 };

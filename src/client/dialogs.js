@@ -104,7 +104,7 @@ export function completionDialog({ game, submit, onClose }) {
   const settings = store.settings();
   const body = h('div');
   const foot = h('div', { class: 'dlg__foot' });
-  const dlg = openDialog(s.mode === 'daily' ? `No. ${s.number} solved` : 'Solved', body, null, { onClose });
+  const dlg = openDialog(`Solved · No. ${s.number}`, body, null, { onClose });
   dlg.append(foot);
 
   const header = h('div', { class: 'result' },
@@ -122,7 +122,7 @@ export function completionDialog({ game, submit, onClose }) {
       h('div', null, h('b', null, r.total ?? '–'), h('span', null, 'Solvers')),
     );
     const notes = [];
-    if (s.mode === 'daily' && !s.ranked) notes.push('Archive puzzles are verified but not ranked.');
+    if (s.mode === 'daily' && !s.ranked) notes.push('Past puzzles are verified but not ranked.');
     if (r.verified && !r.plausible) notes.push('That was faster than our human limit, so it was not ranked.');
     if (r.duplicate) notes.push('This game was already on the board.');
 
@@ -145,11 +145,9 @@ export function completionDialog({ game, submit, onClose }) {
             },
           }, icon('share'), 'Share')
         : null,
-      s.mode === 'practice'
-        ? h('a', { class: 'btn btn--primary', href: `/practice/${s.level}`, onclick: () => dlg.close() }, 'Next puzzle')
-        : null,
-      h('a', { class: 'btn', href: '/', onclick: () => dlg.close() }, 'Back to today'),
+      h('button', { class: 'btn', type: 'button', onclick: () => dlg.close() }, 'Close'),
     );
+    foot.after(nextPuzzle());
   };
 
   const run = async (name) => {
@@ -218,7 +216,6 @@ export function statsDialog() {
   const results = store.results();
   const st = streaks(results);
   const per = levelStats(results);
-  const practice = store.practiceStats();
   openDialog('Statistics', [
     h('div', { class: 'facts' },
       h('div', null, h('b', null, st.days), h('span', null, 'Days played')),
@@ -229,17 +226,51 @@ export function statsDialog() {
       h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Level'), h('th', { class: 'num' }, 'Solved'), h('th', { class: 'num' }, 'Best'), h('th', { class: 'num' }, 'Average'))),
       h('tbody', null, LEVELS.map((l, i) => {
         const s = per[l];
-        const practiced = practice[l]?.length || 0;
         return h('tr', null,
           h('td', null, i + 1),
-          h('td', null, capitalize(l), practiced ? h('small', { class: 'caption' }, ` +${practiced} practice`) : null),
+          h('td', null, capitalize(l)),
           h('td', { class: 'num' }, s.solved),
           h('td', { class: 'num' }, s.best != null ? formatTime(s.best) : '–'),
           h('td', { class: 'num' }, s.average != null ? formatTime(s.average) : '–'),
         );
       })),
     ),
+    nextPuzzle(),
   ]);
+}
+
+// ---- next puzzle countdown ----
+
+/** Live countdown to local midnight, when the next set of puzzles unlocks. */
+export function nextPuzzle() {
+  const value = h('b');
+  const el = h('div', { class: 'result' }, h('span', { class: 'sub' }, 'Next puzzles in'), h('span', { class: 'result__time' }, value));
+  const update = () => {
+    if (!el.isConnected && el.dataset.started) return clearInterval(timer);
+    el.dataset.started = '1';
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const left = Math.max(0, Math.floor((midnight - now) / 1000));
+    value.textContent = [left / 3600, (left % 3600) / 60, left % 60].map((n) => String(Math.floor(n)).padStart(2, '0')).join(':');
+  };
+  const timer = setInterval(update, 1000);
+  update();
+  return el;
+}
+
+// ---- help ----
+
+export function helpDialog() {
+  openDialog('How to play', h('div', { class: 'help' },
+    h('p', null, 'Fill the grid so every row, column and 3×3 box contains the digits 1 to 9 exactly once.'),
+    h('ul', null,
+      h('li', null, 'There are four new puzzles every day, from Easy to Expert. Everyone gets the same ones.'),
+      h('li', null, 'Every puzzle can be solved by logic alone. The label tells you the hardest technique it needs.'),
+      h('li', null, 'A hint explains the next logical step instead of just giving the answer. Each hint adds 30 seconds.'),
+      h('li', null, 'When you finish, the server replays your moves to verify the solve before it goes on the leaderboard.'),
+    ),
+    h('p', null, 'Keys: 1–9 to place, Shift+digit or N for notes, arrows to move, Backspace to erase, H for a hint, Space to pause, Ctrl+Z to undo.'),
+  ));
 }
 
 // ---- settings ----
