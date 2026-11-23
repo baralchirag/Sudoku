@@ -1,15 +1,16 @@
-# The Daily Sudoku
+# Sudoku · Daily
 
-Four new Sudoku puzzles every day, graded by the logic techniques they need.
-Hints explain the next deduction. Finished games are replayed on the server
-before they reach the leaderboard. The whole app (API, engine and UI) ships as
-**one file** that runs on Cloudflare Workers' free plan.
+A daily Sudoku in the spirit of Wordle. You open the site and today's puzzle
+is right there, with nothing else on the page. The interesting part is the
+backend: puzzles graded by human logic techniques, hints that explain the
+next step, and a leaderboard that only accepts solves it has replayed and
+verified. API, engine and UI ship as **one file** that runs on Cloudflare
+Workers' free plan.
 
-- **Daily challenge:** Easy, Medium, Hard and Expert, the same for everyone, numbered like a newspaper puzzle
+- **Four dailies:** Easy, Medium, Hard and Expert, the same for everyone, with a new set at midnight
 - **Explained hints:** the server runs a human-style solver and returns the technique, the pattern cells and the chain of eliminations ("after this X-Wing, r4c2 is a naked single")
 - **Verified leaderboard:** the server replays the move log, checks timing, ranks results and shows where you fall in the day's solve-time distribution
-- **Archive and practice:** every past daily stays playable, plus unlimited unranked practice
-- Pencil notes, undo/redo, conflict marking, full keyboard control, pause, streaks, stats, light/dark themes, works on phones
+- Notes, undo, conflict marking, keyboard control, pause, streaks, stats, share text, dark mode, works on phones
 
 ## Architecture
 
@@ -44,7 +45,7 @@ src/
     crypto.js     HMAC-signed stateless sessions
     replay.js     server-side move replay and timing checks
     leaderboard.js KV or in-memory leaderboard with histogram percentiles
-  client/       no-framework SPA (router, game state, board view, dialogs)
+  client/       one screen, no framework (game state, board view, dialogs)
   data/bank.js  400 graded puzzles exported from the Go engine
 engine-go/      original Go engine: generator, grader, CLI, JSON-backed API
 scripts/        build, dev server, bank export
@@ -124,7 +125,7 @@ Without the binding, leaderboards live in isolate memory.
 | Endpoint | Description |
 | --- | --- |
 | `GET /api/daily?date=` | The day's four puzzles: level, required technique, clue count. No grids |
-| `POST /api/session` | `{mode: "daily", date, level}` or `{mode: "practice", level}` returns `token`, `puzzle` |
+| `POST /api/session` | `{mode: "daily", date, level}` returns `token`, `puzzle`. Also accepts `{mode: "practice", level}` for unranked puzzles |
 | `POST /api/hint` | `{token, board}` returns the next placement with an explanation, or the first wrong cell, plus a new token |
 | `POST /api/submit` | `{token, moves, elapsed, name}` replays and verifies the game, returns rank, percentile and histogram |
 | `GET /api/leaderboard/:date/:level` | Top 20 and the solve-time histogram |
