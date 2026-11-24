@@ -64,6 +64,10 @@ export function addDays(date, n) {
   return localDate(d);
 }
 
+/** "Nov 24" */
+export const shortDate = (date) =>
+  new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
 export function longDate(date) {
   return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',

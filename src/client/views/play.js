@@ -1,7 +1,7 @@
 // The game: level tabs, timer, board, tools, number row and explained hints.
 // Autosaves locally and has the server verify the solve on completion.
 
-import { h, mount, toast, formatTime, capitalize } from '../dom.js';
+import { h, mount, toast, formatTime, capitalize, shortDate } from '../dom.js';
 import { icon } from '../icons.js';
 import { api } from '../api.js';
 import { store } from '../store.js';
@@ -51,7 +51,7 @@ export function mountGame(root, { date, level, onLevel, settings: getSettings })
 
     const timerEl = h('span', null, formatTime(game.time()));
     const pauseBtn = h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Pause', onclick: () => togglePause() }, icon('pause'));
-    const status = h('p', { class: 'status' }, `No. ${game.session.number} · needs ${game.session.technique}`);
+    const status = h('p', { class: 'status' }, shortDate(date));
     const board = new BoardView(game, settings, { onSelect: (i) => select(i) });
     const boardWrap = h('div', { class: 'board-wrap' }, board.el);
     const explain = h('div', { 'aria-live': 'polite' });
@@ -154,9 +154,9 @@ export function mountGame(root, { date, level, onLevel, settings: getSettings })
       }
       actions.append(h('button', { class: 'btn btn--ghost', type: 'button', onclick: clearHint }, 'Close'));
       explain.replaceChildren(h('div', { class: 'explain' },
-        h('h3', null, res.technique),
+        h('h3', null, res.kind === 'mistake' ? 'Mistake' : 'Hint'),
         res.chain.length
-          ? h('ol', null, res.chain.map((c) => h('li', null, h('b', null, `${c.technique}: `), c.description)), h('li', null, res.description))
+          ? h('ol', null, res.chain.map((c) => h('li', null, c.description)), h('li', null, h('b', null, res.description)))
           : h('p', null, res.description),
         actions,
       ));
