@@ -119,7 +119,7 @@ export async function hint(ctx) {
     return {
       token, hints, kind: 'mistake', index: i, wrong,
       technique: 'Mistake',
-      description: `The ${board[i]} in ${cellName(i)} is not part of the solution${wrong.length > 1 ? `, and ${wrong.length - 1} other cell${wrong.length > 2 ? 's are' : ' is'} wrong too` : ''}.`,
+      description: `The ${board[i]} at ${cellName(i)} is wrong${wrong.length > 1 ? `, and ${wrong.length - 1} other cell${wrong.length > 2 ? 's are' : ' is'} wrong too` : ''}.`,
       cells: [i], units: [], eliminations: [], chain: [],
     };
   }
@@ -130,7 +130,7 @@ export async function hint(ctx) {
     const i = board.findIndex((v) => !v);
     return {
       token, hints, kind: 'reveal', index: i, value: solution[i],
-      technique: 'Reveal', description: `${cellName(i)} is ${solution[i]}.`,
+      technique: 'Reveal', description: `The answer at ${cellName(i)} is ${solution[i]}.`,
       cells: [i], units: CELL_UNITS[i], eliminations: [], chain: [],
     };
   }

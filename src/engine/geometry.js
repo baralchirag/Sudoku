@@ -49,8 +49,8 @@ export const colOf = (i) => i % 9;
 export const boxOf = (i) => CELL_UNITS[i][2] - 18;
 export const sees = (a, b) => IS_PEER[a * CELLS + b] === 1;
 
-/** Human-readable cell name, 1-based: r3c7. */
-export const cellName = (i) => `r${rowOf(i) + 1}c${colOf(i) + 1}`;
+/** Human-readable cell name, 1-based: "row 3, column 7". */
+export const cellName = (i) => `row ${rowOf(i) + 1}, column ${colOf(i) + 1}`;
 
 /** Human-readable unit name: "row 3", "column 7", "box 5". */
 export function unitName(u) {

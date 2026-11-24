@@ -38,8 +38,10 @@ export function techniqueLevel(t) {
   return 3;
 }
 
-const digitList = (mask) => digitsOf(mask).join('/');
-const cellList = (cells) => cells.map(cellName).join(', ');
+const and = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const digitList = (mask) => and(digitsOf(mask));
+const cellList = (cells) => and(cells.map(cellName));
 
 /**
  * @typedef {object} Step
@@ -172,7 +174,7 @@ function hiddenSingle(g) {
       if (pos.length === 1) {
         return step(Technique.HiddenSingle, {
           index: pos[0], value: v, cells: UNITS[u], units: [u],
-          description: `${v} can only go in ${cellName(pos[0])} within ${unitName(u)}.`,
+          description: `In ${unitName(u)}, the only place for ${v} is ${cellName(pos[0])}.`,
         });
       }
     }
@@ -186,7 +188,7 @@ function nakedSingle(g) {
       const v = lowestDigit(g.cand[i]);
       return step(Technique.NakedSingle, {
         index: i, value: v, cells: PEERS[i], units: CELL_UNITS[i],
-        description: `${cellName(i)} sees every digit except ${v}, so it must be ${v}.`,
+        description: `${cap(cellName(i))} already sees every number except ${v}, so it must be ${v}.`,
       });
     }
   }
@@ -207,7 +209,7 @@ function lockedCandidates(g) {
         if (elims.length) {
           return step(Technique.LockedCandidates, {
             eliminations: elims, cells: pos, units: [b, line],
-            description: `In ${unitName(b)}, ${v} is confined to ${unitName(line)}, so it can be removed from the rest of ${unitName(line)}.`,
+            description: `In ${unitName(b)}, ${v} can only go in ${unitName(line)}. So ${v} can't go anywhere else in ${unitName(line)}.`,
           });
         }
       }
@@ -221,7 +223,7 @@ function lockedCandidates(g) {
       if (elims.length) {
         return step(Technique.LockedCandidates, {
           eliminations: elims, cells: pos, units: [line, b],
-          description: `In ${unitName(line)}, ${v} is confined to ${unitName(b)}, so it can be removed from the rest of ${unitName(b)}.`,
+          description: `In ${unitName(line)}, ${v} can only go in ${unitName(b)}. So ${v} can't go anywhere else in ${unitName(b)}.`,
         });
       }
     }
@@ -250,7 +252,7 @@ function nakedSubset(g, n) {
       const pattern = [...pick];
       return step(subsetTechnique(true, n), {
         eliminations: elims, cells: pattern, units: [u],
-        description: `${cellList(pattern)} in ${unitName(u)} can only hold ${digitList(union)}, so those digits can be removed from the rest of ${unitName(u)}.`,
+        description: `In ${unitName(u)}, ${cellList(pattern)} can only hold ${digitList(union)} between them. So those numbers can't go anywhere else in ${unitName(u)}.`,
       });
     });
     if (found) return found;
@@ -284,7 +286,7 @@ function hiddenSubset(g, n) {
       if (!elims.length) return null;
       return step(subsetTechnique(false, n), {
         eliminations: elims, cells, units: [u],
-        description: `In ${unitName(u)}, ${digitList(digitMask)} fit only in ${cellList(cells)}, so other candidates can be removed from those cells.`,
+        description: `In ${unitName(u)}, ${digitList(digitMask)} only fit in ${cellList(cells)}. So those cells can't hold any other number.`,
       });
     });
     if (found) return found;
@@ -322,7 +324,7 @@ function fish(g, n) {
         return step(technique, {
           eliminations: elims, cells: pattern,
           units: [...pick.map((b) => o.base + b), ...coverLines.map((j) => o.cover + j)],
-          description: `In ${o.baseKind} ${pick.map((b) => b + 1).join(', ')}, digit ${v} only appears in ${o.coverKind} ${coverLines.map((j) => j + 1).join(', ')}, so it can be removed from the rest of those ${o.coverKind}.`,
+          description: `In ${o.baseKind} ${and(pick.map((b) => b + 1))}, ${v} only fits in ${o.coverKind} ${and(coverLines.map((j) => j + 1))}. So ${v} can't go anywhere else in those ${o.coverKind}.`,
         });
       });
       if (found) return found;
@@ -358,7 +360,7 @@ function xyWing(g) {
         if (!elims.length) continue;
         return step(Technique.XYWing, {
           eliminations: elims, cells: [pivot, a, b],
-          description: `Pivot ${cellName(pivot)} (${digitList(pc)}) with pincers ${cellName(a)} (${digitList(ca)}) and ${cellName(b)} (${digitList(cb)}): one pincer must be ${zv}, so ${zv} can be removed from cells that see both.`,
+          description: `${cap(cellName(pivot))} is ${digitList(pc).replace(' and ', ' or ')}. Either way, ${cellName(a)} or ${cellName(b)} ends up as ${zv}. So ${zv} can't go in any cell that sees both of them.`,
         });
       }
     }
