@@ -1,7 +1,7 @@
 // Modal dialogs built on the native <dialog> element (focus trapping, Esc
 // to close and the backdrop come for free).
 
-import { h, formatTime, capitalize, toast } from './dom.js';
+import { h, formatTime, capitalize, toast, shortDate } from './dom.js';
 import { icon } from './icons.js';
 import { api } from './api.js';
 import { store } from './store.js';
@@ -104,7 +104,7 @@ export function completionDialog({ game, submit, onClose }) {
   const settings = store.settings();
   const body = h('div');
   const foot = h('div', { class: 'dlg__foot' });
-  const dlg = openDialog(`Solved · No. ${s.number}`, body, null, { onClose });
+  const dlg = openDialog(`Solved · ${shortDate(s.date)}`, body, null, { onClose });
   dlg.append(foot);
 
   const header = h('div', { class: 'result' },
@@ -139,7 +139,7 @@ export function completionDialog({ game, submit, onClose }) {
         ? h('button', {
             class: 'btn btn--accent', type: 'button',
             onclick: async () => {
-              const text = shareText({ number: s.number, level: s.level, ms: r.ms, hints: r.hints, percentile: r.percentile, rank: r.rank, streak });
+              const text = shareText({ date: s.date, level: s.level, ms: r.ms, hints: r.hints, percentile: r.percentile, rank: r.rank, streak });
               const how = await share(text);
               toast(how === 'copied' ? 'Result copied to clipboard' : how === 'shared' ? 'Shared' : 'Could not share');
             },
@@ -265,7 +265,7 @@ export function helpDialog() {
     h('p', null, 'Fill the grid so every row, column and 3×3 box contains the digits 1 to 9 exactly once.'),
     h('ul', null,
       h('li', null, 'There are four new puzzles every day, from Easy to Expert. Everyone gets the same ones.'),
-      h('li', null, 'Every puzzle can be solved by logic alone. The label tells you the hardest technique it needs.'),
+      h('li', null, 'Every puzzle can be solved by logic alone. No guessing needed.'),
       h('li', null, 'A hint explains the next logical step instead of just giving the answer. Each hint adds 30 seconds.'),
       h('li', null, 'When you finish, the server replays your moves to verify the solve before it goes on the leaderboard.'),
     ),

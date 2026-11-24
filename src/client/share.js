@@ -1,9 +1,9 @@
 // Spoiler-free share text for a finished daily.
 
-import { formatTime, capitalize } from './dom.js';
+import { formatTime, capitalize, shortDate } from './dom.js';
 
-export function shareText({ number, level, ms, hints, percentile, rank, streak }) {
-  const lines = [`Daily Sudoku No. ${number} · ${capitalize(level)}`];
+export function shareText({ date, level, ms, hints, percentile, rank, streak }) {
+  const lines = [`Sudoku · ${shortDate(date)} · ${capitalize(level)}`];
   const parts = [formatTime(ms), hints ? `${hints} hint${hints > 1 ? 's' : ''}` : 'no hints'];
   if (rank) parts.push(`#${rank} today`);
   else if (percentile != null) parts.push(`faster than ${percentile}%`);
